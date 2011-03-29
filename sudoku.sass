@@ -1,0 +1,96 @@
+@mixin place-horiz($pos, $width)
+  width: $width
+  position: absolute  
+  left: $pos
+  margin-left: -($width/2)
+
+@mixin place-vert($pos, $height)
+  height: $height
+  position: absolute
+  top: $pos
+  margin-top: -($height/2)
+
+@mixin center-horiz($width)
+  @include place-horiz(50%, $width)
+
+@mixin center-vert($height)
+  @include place-vert(50%, $height)
+
+/* Number formatting */
+.num
+  background: none
+  border: none
+  width: 20px
+  height: 20px
+  text-align: center
+
+  .filled
+    font-weight: bold
+
+$cell-bg: #FFFFFF      
+$cell-hover-bg: #424242
+$cell-hover-bg2: #FFFFFF
+$num-hover-col: #FFFFFF
+
+#stdin
+  height: 135px
+  width: 75px
+
+#stderr
+  @include place-vert(50%, 500px)
+  @include place-horiz(80%, 300px)
+  
+/* Main grid table */      
+table#grid
+
+  border-spacing: 0
+  border: 1px solid black
+
+  tr:hover
+    background-color: $cell-hover-bg2
+    
+  /* Cells holding the sub-tables */
+  td
+    border: 1px solid black
+    padding: 0
+
+    /* Sub-tables */
+    table
+      border-collapse: collapse
+      border-spacing: 0
+
+      td
+        border: 1px dotted black
+        padding: 5px
+        spacing: 0
+        background-color: $cell-bg
+
+        &:hover
+          background-color: $cell-hover-bg
+
+          input[type=text]
+            color: $num-hover-col
+
+        &:first-child
+          border-left: 0
+        &:last-child
+          border-right: 0
+
+      tr
+        &:first-child td
+          border-top: 0
+        &:last-child td
+          border-bottom: 0
+
+
+  @include center-horiz(284px)
+  @include place-vert(40%, 302px)
+
+#solve-b
+  font-size: 40px
+
+  @include center-horiz(200px)
+  @include place-vert(80%, 80px)
+
+
+    

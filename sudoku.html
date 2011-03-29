@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Sudoku Solver for COMP352!</title>
+    <link rel="stylesheet" type="text/css" href="sudoku.css" />
+    <script type="text/javascript" src="jquery-1.5.1.js"></script>
+    <script type="text/javascript" src="sudoku.js"></script>
+  </head>
+  <body>
+    <table id="grid">
+      <tr class="gr0">
+        <td class="gc0">
+          <table>
+            <tr class="r0">
+              <td class="c0"><input type="text" class="num" /></td>
+              <td class="c1"><input type="text" class="num" /></td>
+              <td class="c2"><input type="text" class="num" /></td>
+            </tr>
+            <tr class="r1">
+              <td class="c0"><input type="text" class="num" /></td>
+              <td class="c1"><input type="text" class="num" /></td>
+              <td class="c2"><input type="text" class="num" /></td>
+            </tr>
+            <tr class="r2">
+              <td class="c0"><input type="text" class="num" /></td>
+              <td class="c1"><input type="text" class="num" /></td>
+              <td class="c2"><input type="text" class="num" /></td>
+            </tr>
+          </table>   
+	    </td>
+	    <td class="gc1">
+	      <table>
+	        <tr class="r0">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r1">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r2">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	      </table>   
+	    </td>
+	    <td class="gc2">
+	      <table>
+	        <tr class="r0">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r1">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r2">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	      </table>   
+	    </td>
+      </tr><tr class="gr1">
+	    <td class="gc0">
+	      <table>
+	        <tr class="r0">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r1">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r2">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	      </table>   
+	    </td>
+	    <td class="gc1">
+	      <table>
+	        <tr class="r0">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r1">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r2">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	      </table>   
+	    </td>
+	    <td class="gc2">
+	      <table>
+	        <tr class="r0">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r1">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r2">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	      </table>   
+	    </td>
+      </tr><tr class="gr2">
+	    <td class="gc0">
+	      <table>
+	        <tr class="r0">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r1">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r2">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	      </table>   
+	    </td>
+	    <td class="gc1">
+	      <table>
+	        <tr class="r0">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r1">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r2">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	      </table>   
+	    </td>
+	    <td class="gc2">
+	      <table>
+	        <tr class="r0">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r1">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	        <tr class="r2">
+	          <td class="c0"><input type="text" class="num" /></td>
+	          <td class="c1"><input type="text" class="num" /></td>
+	          <td class="c2"><input type="text" class="num" /></td>
+	        </tr>
+	      </table>   
+	    </td>
+      </tr>
+    </table>
+
+    <input id="solve-b" type="submit" value="Solve!" />
+
+    <div id="input-container">
+      <textarea id="stdin"></textarea> <br />
+      <input id="input-b" type="submit" value="Input" />
+    </div>
+
+    <textarea id="stderr" readonly="true"></textarea>
+
+  </body>
+</html>

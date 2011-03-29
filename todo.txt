@@ -1,0 +1,12 @@
+- Add javascript to highlight groups/row/col on hover
+- Add button to pull random sudoku from database
+- Add server to pull random sudoku from websudoku
+
+Strategies:
+
+1 For a given group, see where the 1s, 2s, etc. are possible; fill them in if
+  there's only one valid position
+2 Repeat 1, but for a given row
+3 Repeat 1, but for a given column
+4 Use methods of the form val_in_row(5,2), and then when you get to this method,
+  turn on a flag that allows this to not just use filled in valids
