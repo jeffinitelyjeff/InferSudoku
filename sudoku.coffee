@@ -95,6 +95,8 @@ $(document).ready ->
       @cell_cant_arrays = []
       init(@cell_cant_arrays, 81, -> 0)
 
+      @desperate = false
+
 
     # UTILITY METHODS ----------------------------------------------------------
     # --------------------------------------------------------------------------
@@ -105,7 +107,7 @@ $(document).ready ->
       for j in [0..8]
         for i in [0..8]
           v = get_input_val i, j
-          a.push if v is '' then 0 else v
+          a.push if v is '' then 0 else parseInt v
       return a
 
     # cartesian coordinates -> base index
@@ -200,9 +202,9 @@ $(document).ready ->
     # index if only one paramater is passed) occupies.
     get_col_of: (x, y) ->
       if y?
-        get_col x
+        @get_col x
       else
-        get_col @base_to_cart(x)[0]
+        @get_col @base_to_cart(x)[0]
 
     # get the array of values from particular col
     get_row: (y) ->
@@ -221,11 +223,12 @@ $(document).ready ->
     # without any repeats. will be called on rows, columns, and groups.
     is_valid: (xs) ->
       hits = []
-      for x in xs
-        hits[x] += 1
 
-      for hit in hits[1..9]
-        return false unless hit is 1
+      for x in xs
+        if hits[x]? then hits[x] += 1 else hits[x] = 1
+
+      for hit in hits[1...9]
+        return false if hit isnt 1
 
       return true
 
@@ -237,7 +240,7 @@ $(document).ready ->
     grid_is_valid: ->
       for i in [0..8]
         return false unless @is_valid @get_col i
-        return false unless @is_vaild @get_row i
+        return false unless @is_valid @get_row i
         return false unless @is_valid @get_group i
       return true
 
@@ -257,6 +260,7 @@ $(document).ready ->
     cell_cant: (i) ->
       if @cell_cant_arrays[i] == 0 then null else @cell_cant_arrays[i]
 
+
     # STRATEGIES ---------------------------------------------------------------
     # --------------------------------------------------------------------------
 
@@ -270,18 +274,21 @@ $(document).ready ->
       for i in [0...81]
         can = []
 
-        # only proceed if desperate or if there is enough info to make this
-        # strategy seem reasonable.
-        if @desperate or @count_filled(@get_group_of(i)) >= 4 or
-                         @count_filled(@get_col_of(i)) >= 4 or
-                         @count_filled(@get_row_of(i)) >= 4
+        # only proceed if the cell is unknown, and if desperate or if there is
+        # enough info to make this strategy seem reasonable.
+        if @base_array[i] == 0 and (@desperate or
+                                    @count_filled(@get_group_of(i)) >= 4 or
+                                    @count_filled(@get_col_of(i)) >= 4 or
+                                    @count_filled(@get_row_of(i)) >= 4)
+
           # store which values are possible for the cell
           for v in [1..9]
             can.push v if @is_possible v, i
 
           # set the cell's value if only one value is possible
           if can.length == 1
-            set_b i, can[0]
+            log "Setting (#{@base_to_cart(i)[0]}, #{@base_to_cart(i)[1]}) by CellByCell"
+            @set_b(i, can[0])
             updated = true
 
           # store the cell-must-be-one-of-these-values info if there are 2 or 3
@@ -292,7 +299,7 @@ $(document).ready ->
             # there.
             unless @cell_must(i)? and eq(@cell_must(i), can)
               @cell_must_arrays[i] = can
-              updated = true
+              updated = if @desperate then true else false
 
           # if we're desperate and we don't have info about what value this cell
           # must be already (possibly filled in just above), then there are
@@ -305,7 +312,7 @@ $(document).ready ->
 
             unless @cell_cant(i)? and eq(@cell_cant(i), cant)
               @cell_cant_arrays[i] = cant
-              updated = true
+              updated = if @desperate then true else false
 
       # this will be set to true if any info was updated on any cells.
       return updated
@@ -320,26 +327,29 @@ $(document).ready ->
 
       until @grid_is_valid() or not grid_changed
         iter += 1
-        log iter
 
         grid_changed = @cellByCell()
+        @desperate = not grid_changed
 
       log if @grid_is_valid() then "Grid solved! :)" else "Grid not solved :("
+
+      log "Must: " + @cell_must_arrays
+      log "Cant: " + @cell_cant_arrays
 
 
 
 
 
   sample = '''
-           ..58..9..
-           ........8
-           .2..17.3.
-           ....64..9
-           37..5..46
-           9..38....
-           .1.64..9.
-           8........
-           ..7..16..
+           .1.97...6
+           ...1..4..
+           329..87.5
+           1.2...9..
+           .9.....7.
+           ..4...2.8
+           9.75..834
+           ..8..3...
+           5...47.2.
            '''
 
   $("#stdin").val(sample)
