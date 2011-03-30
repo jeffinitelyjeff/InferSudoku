@@ -95,6 +95,7 @@ $(document).ready ->
       @cell_cant_arrays = []
       init(@cell_cant_arrays, 81, -> 0)
 
+      @solve_iter_num = 0
       @desperate = false
 
 
@@ -157,6 +158,9 @@ $(document).ready ->
         set_input_val(x,y,'')
       else
         set_input_val(x,y,v)
+        $(sel(x,y))
+          .animate(backgroundColor: "#FFFF00", 100)
+          .animate(backgroundColor: "#FFFFFF", 2000)
 
       # TODO update stored info
 
@@ -267,7 +271,11 @@ $(document).ready ->
     # Returns true if the grid has been updated (or, if @desperate, then if any
     # knowledge has been updated)
     cellByCell: ->
-      log "performing Cell By Cell"
+      if @desperate
+        log "desperately preforming Cell By Cell"
+      else
+        log "performing Cell By Cell"
+
       updated = false
 
       # for each cell index
@@ -287,7 +295,8 @@ $(document).ready ->
 
           # set the cell's value if only one value is possible
           if can.length == 1
-            log "Setting (#{@base_to_cart(i)[0]}, #{@base_to_cart(i)[1]}) by CellByCell"
+            log "Setting (#{@base_to_cart(i)[0]}, #{@base_to_cart(i)[1]}) by " +
+                (if @desperate then "desperate " else "") + "CellByCell"
             @set_b(i, can[0])
             updated = true
 
@@ -321,24 +330,37 @@ $(document).ready ->
     # SOLVE LOOP ---------------------------------------------------------------
     # --------------------------------------------------------------------------
 
-    solve: ->
-      iter = 0
-      grid_changed = true
+    solve_iter : ->
+      @solve_iter_num
 
-      until @grid_is_valid() or not grid_changed
-        iter += 1
+    solve_iter_plus : ->
+      @solve_iter_num += 1
 
-        grid_changed = @cellByCell()
-        @desperate = not grid_changed
+    solve_loop : ->
+      grid_changed = @cellByCell()
 
+      # if the grid didnt' change, but desperation is turned off, turn on
+      # desperation and pretend like the grid changed.
+      if not @desperate and not grid_changed
+        @desperate = true
+        grid_changed = true
+
+      if @grid_is_valid() or not grid_changed or @solve_iter > 100
+        @solve_loop_done()
+      else
+        fn = @solve_loop.bind(@)
+        setTimeout(fn, 500)
+
+    solve_loop_done: ->
       log if @grid_is_valid() then "Grid solved! :)" else "Grid not solved :("
 
       log "Must: " + @cell_must_arrays
       log "Cant: " + @cell_cant_arrays
 
-
-
-
+    solve: ->
+      @solve_iter = @solve_iter.bind(this)
+      @solve_iter_plus = @solve_iter_plus.bind(this)
+      @solve_loop()
 
   sample = '''
            .1.97...6
