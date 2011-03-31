@@ -12,6 +12,15 @@ $(document).ready ->
       return false if xs[i] != ys[i]
     return true
 
+  # count the number of elements of an array which are greater than 0. this will
+  # be used for a grid to see how many elements have been filled into particular
+  # rows/cols/groups (empty values are stored as 0's).
+  num_pos = (xs) ->
+    i = 0
+    for x in xs
+      i += 1 if x > 0
+    return i
+
   ## ----------------------------------------------------------------------------
   ## Low-level Utility Functions ------------------------------------------------
 
@@ -70,6 +79,7 @@ $(document).ready ->
     $(sel(x,y) + " .num").val(v)
 
 
+
   ## ---------------------------------------------------------------------------
   ## Grid Class ----------------------------------------------------------------
 
@@ -77,27 +87,6 @@ $(document).ready ->
     constructor: ->
       # cell values
       @base_array = @collect_input()
-
-      # which values each cell can be; this info will ordinarily be stored if
-      # there are only a couple possible values, or if the algorithm is
-      # desperate (and then it only makes sense to store this if there are up to
-      # 4 elements; if there are 5 possibilities, then it's easier (and more
-      # human-like) to store that 4 possibilities are ruled out.
-      @cell_must_arrays = []
-      init(@cell_must_arrays, 81, -> 0)
-
-      # which values each cell cannot be; this info will ordinarily only be
-      # stored if the algorithm is desperate, as it does not immediately help
-      # find values to fill in. it only makes sense to store this if there are
-      # up to 4 elements; if there are 5 possibilites ruled out, then it's
-      # easier (and more human-like) to store the 4 possibilites instead of the
-      # 5 ruled out ones.
-      @cell_cant_arrays = []
-      init(@cell_cant_arrays, 81, -> 0)
-
-      @solve_iter_num = 0
-      @desperate = false
-
 
     # UTILITY METHODS ----------------------------------------------------------
     # --------------------------------------------------------------------------
@@ -108,7 +97,7 @@ $(document).ready ->
       for j in [0..8]
         for i in [0..8]
           v = get_input_val i, j
-          a.push if v is '' then 0 else parseInt v
+          a.push if v is '' then 0 else parseInt(v)
       return a
 
     # cartesian coordinates -> base index
@@ -126,15 +115,6 @@ $(document).ready ->
       x = Math.floor i % 9
       y = Math.floor i / 9
       return [x,y]
-
-    # count the number of elements of an array which are greater than 0. this
-    # will be used for a grid to see how man elements in a row/col/group are
-    # filled in.x
-    count_filled: (xs) ->
-      i = 0
-      for x in xs
-        i += 1 if x > 0
-      return i
 
     # access an element using base indices.
     get_b: (i) ->
@@ -179,8 +159,8 @@ $(document).ready ->
         x = Math.floor x % 3
 
       a = []
-      for i in [0..2]
-        for j in [0..2]
+      for j in [0..2]
+        for i in [0..2]
           a.push @get_g(x, y, i, j)
 
       return a
@@ -225,7 +205,7 @@ $(document).ready ->
 
     # determines if an array of numbers has one of each of the numbers 1..9
     # without any repeats. will be called on rows, columns, and groups.
-    is_valid: (xs) ->
+    valid_array: (xs) ->
       hits = []
 
       for x in xs
@@ -241,18 +221,37 @@ $(document).ready ->
     #   - each row is unique
     #   - each col is unique
     #   - each group is unique
-    grid_is_valid: ->
+    is_valid: ->
       for i in [0..8]
-        return false unless @is_valid @get_col i
-        return false unless @is_valid @get_row i
-        return false unless @is_valid @get_group i
+        return false unless @valid_array @get_col i
+        return false unless @valid_array @get_row i
+        return false unless @valid_array @get_group i
       return true
 
-    # determines if it is possible to put value v at index i of the grid.
-    is_possible: (v, i) ->
-      v not in @get_row_of(i) and
-      v not in @get_col_of(i) and
-      v not in @get_group_of(i)
+  ## ---------------------------------------------------------------------------
+  ## Solver Class --------------------------------------------------------------
+
+  class Solver
+    constructor: (@grid) ->
+      # which values each cell can be; this info will ordinarily be stored if
+      # there are only a couple possible values, or if the algorithm is
+      # desperate (and then it only makes sense to store this if there are up to
+      # 4 elements; if there are 5 possibilities, then it's easier (and more
+      # human-like) to store that 4 possibilities are ruled out.
+      @cell_must_arrays = []
+      init(@cell_must_arrays, 81, -> 0)
+
+      # which values each cell cannot be; this info will ordinarily only be
+      # stored if the algorithm is desperate, as it does not immediately help
+      # find values to fill in. it only makes sense to store this if there are
+      # up to 4 elements; if there are 5 possibilites ruled out, then it's
+      # easier (and more human-like) to store the 4 possibilites instead of the
+      # 5 ruled out ones.
+      @cell_cant_arrays = []
+      init(@cell_cant_arrays, 81, -> 0)
+
+      @solve_iter = 0
+      @desperate = false
 
     # returns the values the cell must be if that info is currently stored;
     # otherwise returns null.
@@ -264,17 +263,18 @@ $(document).ready ->
     cell_cant: (i) ->
       if @cell_cant_arrays[i] == 0 then null else @cell_cant_arrays[i]
 
+    # determines if it is possible to put value v at index i of the grid.
+    cell_is_possible: (v, i) ->
+      v not in @grid.get_row_of(i) and
+      v not in @grid.get_col_of(i) and
+      v not in @grid.get_group_of(i)
 
     # STRATEGIES ---------------------------------------------------------------
-    # --------------------------------------------------------------------------
 
     # Returns true if the grid has been updated (or, if @desperate, then if any
     # knowledge has been updated)
     cellByCell: ->
-      if @desperate
-        log "desperately preforming Cell By Cell"
-      else
-        log "performing Cell By Cell"
+      log (if @desperate then "desperately " else "") + "performing CellByCell"
 
       updated = false
 
@@ -284,20 +284,22 @@ $(document).ready ->
 
         # only proceed if the cell is unknown, and if desperate or if there is
         # enough info to make this strategy seem reasonable.
-        if @base_array[i] == 0 and (@desperate or
-                                    @count_filled(@get_group_of(i)) >= 4 or
-                                    @count_filled(@get_col_of(i)) >= 4 or
-                                    @count_filled(@get_row_of(i)) >= 4)
+        if @grid.get_b(i) == 0 and (@desperate or
+                                   num_pos(@grid.get_group_of(i)) >= 4 or
+                                   num_pos(@grid.get_col_of(i)) >= 4 or
+                                   num_pos(@grid.get_row_of(i)) >= 4)
 
           # store which values are possible for the cell
           for v in [1..9]
-            can.push v if @is_possible v, i
+            can.push v if @cell_is_possible v, i
 
           # set the cell's value if only one value is possible
           if can.length == 1
-            log "Setting (#{@base_to_cart(i)[0]}, #{@base_to_cart(i)[1]}) by " +
-                (if @desperate then "desperate " else "") + "CellByCell"
-            @set_b(i, can[0])
+            desp_string = if @desperate then 'desperate ' else ''
+            [x,y] = @grid.base_to_cart(i)
+            log "Setting (#{x}, #{y}) to #{can[0]} by #{desp_string}CellByCell"
+
+            @grid.set_b(i, can[0])
             updated = true
 
           # store the cell-must-be-one-of-these-values info if there are 2 or 3
@@ -317,7 +319,7 @@ $(document).ready ->
           if @desperate and not @cell_must(i)?
             cant = []
             for v in [1..9]
-              cant.push v unless @is_possible v, i
+              cant.push v unless @cell_is_possible v, i
 
             unless @cell_cant(i)? and eq(@cell_cant(i), cant)
               @cell_cant_arrays[i] = cant
@@ -326,41 +328,37 @@ $(document).ready ->
       # this will be set to true if any info was updated on any cells.
       return updated
 
-
     # SOLVE LOOP ---------------------------------------------------------------
-    # --------------------------------------------------------------------------
-
-    solve_iter : ->
-      @solve_iter_num
-
-    solve_iter_plus : ->
-      @solve_iter_num += 1
 
     solve_loop : ->
       grid_changed = @cellByCell()
 
-      # if the grid didnt' change, but desperation is turned off, turn on
-      # desperation and pretend like the grid changed.
-      if not @desperate and not grid_changed
-        @desperate = true
-        grid_changed = true
+      if not grid_changed
+        # give up if we were desperate and didn't get anywhere.
+        if @desperate
+          @solve_loop_done()
+        # if we weren't desperate, then set to desperate and try again.
+        else
+          @desperate = true
+          updated = true
 
-      if @grid_is_valid() or not grid_changed or @solve_iter > 100
+      # finish if the grid is complete or we've done too much effort, otherwise
+      # proceed with the solving.
+      if @grid.is_valid() or @solve_iter > 100
         @solve_loop_done()
       else
-        fn = @solve_loop.bind(@)
-        setTimeout(fn, 500)
+        next_step = @solve_loop.bind(@)
+        setTimeout(next_step, 500)
 
     solve_loop_done: ->
-      log if @grid_is_valid() then "Grid solved! :)" else "Grid not solved :("
+      log if @is_valid() then "Grid solved! :)" else "Grid not solved :("
 
       log "Must: " + @cell_must_arrays
       log "Cant: " + @cell_cant_arrays
 
     solve: ->
-      @solve_iter = @solve_iter.bind(this)
-      @solve_iter_plus = @solve_iter_plus.bind(this)
       @solve_loop()
+
 
   sample = '''
            .1.97...6
@@ -397,6 +395,7 @@ $(document).ready ->
 
 
   $("#solve-b").click ->
-    grid = new Grid()
-    grid.solve()
+    g = new Grid()
+    s = new Solver(g)
+    s.solve()
 
