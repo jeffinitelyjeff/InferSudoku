@@ -31,6 +31,7 @@ $cell-bg: #FFFFFF
 $cell-hover-bg: #424242
 $cell-hover-bg2: #AAAAAA
 $cell-hover-bg3: #DDDDDD
+$cell-highlight: #FFFF00
 $num-hover-col: #FFFFFF
 
 #stdin
@@ -63,17 +64,27 @@ table#grid
         spacing: 0
         background-color: $cell-bg
 
+        input[type=text]
+          font-weight: bold
+        
         &.adjacent2
           background-color: $cell-hover-bg3
 
         &.adjacent
           background-color: $cell-hover-bg2
-
+      
         &:hover
           background-color: $cell-hover-bg
 
           input[type=text]
             color: $num-hover-col
+
+        &.new input[type=text]
+          font-weight: normal
+
+        &.highlight
+          background-color: $cell-highlight
+          color: black
 
         &:first-child
           border-left: 0

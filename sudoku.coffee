@@ -1,9 +1,9 @@
 $(document).ready ->
 
   # delay after filling in cells
-  fdel = 500
+  fdel = 50
   # delay between strategies
-  sdel = 1000
+  sdel = 100
 
   ## ---------------------------------------------------------------------------
   ## General Helper Functions --------------------------------------------------
@@ -185,9 +185,9 @@ $(document).ready ->
         set_input_val(x,y,'')
       else
         set_input_val(x,y,v)
+        $(sel(x,y)).addClass('new')
         $(sel(x,y))
-          .animate(backgroundColor: "#FFFF00", 100)
-          .animate(backgroundColor: "#FFFFFF", 2000)
+          .addClass('highlight', 500).delay(500).removeClass('highlight', 2000)
 
       # TODO update stored info
 
@@ -344,6 +344,8 @@ $(document).ready ->
 
       next_step = @cell_by_cell_loop.bind(@, i+1)
       done = @solve_loop.bind(@)
+      immediately_iterate = ->
+        if i == 80 then setTimeout(done, sdel) else next_step()
 
       # only proceed if the cell is unknown, and if desperate or if there is
       # enough info to make this strategy seem reasonable.
@@ -371,7 +373,7 @@ $(document).ready ->
             # 3 possible values.
             @updated = @desperate and @set_cell_must(i, can)
 
-            if i == 80 then setTimeout(done, sdel) else next_step()
+            immediately_iterate()
 
           when 4
             # store the cell-must-be-one-of-these-values info if we're desperate
@@ -379,7 +381,7 @@ $(document).ready ->
             if @desperate
               @updated = @set_cell_must(i, can)
 
-            if i == 80 then setTimeout(done, sdel) else next_step()
+            immediately_iterate()
 
           else
             # if this cell can be more than 4 things and we're desperate, then
@@ -389,9 +391,9 @@ $(document).ready ->
 
               @updated = @set_cell_cant(i, cant)
 
-            if i == 80 then setTimeout(done, sdell) else next_step()
+            immediately_iterate()
       else
-        if i == 80 then setTimeout(done, sdell) else next_step()
+        immediately_iterate()
 
     cell_by_cell: ->
       log (if @desperate then "desperately " else "") + "performing Cell By Cell"
@@ -403,6 +405,9 @@ $(document).ready ->
     # SOLVE LOOP ---------------------------------------------------------------
 
     solve_loop : ->
+      @solve_iter += 1
+      log "iteration #{@solve_iter}" + if @desperate then ", desperate" else ""
+
       if not @updated
         # give up if we were desperate and didn't get anywhere.
         if @desperate
@@ -413,13 +418,14 @@ $(document).ready ->
 
       # finish if the grid is complete or we've done too much effort
       if @grid.is_valid() or @solve_iter > 100
+        log 'breaking out?'
         @solve_loop_done()
       else
         # this will set @updated, and call solve_loop recursively.
         @cell_by_cell()
 
     solve_loop_done: ->
-      log if @is_valid() then "Grid solved! :)" else "Grid not solved :("
+      log if @grid.is_valid() then "Grid solved! :)" else "Grid not solved :("
 
       log "Must: " + @cell_must_arrays
       log "Cant: " + @cell_cant_arrays
@@ -428,26 +434,50 @@ $(document).ready ->
       @solve_loop()
 
 
-  sample = '''
-           .1.97...6
-           ...1..4..
-           329..87.5
-           1.2...9..
-           .9.....7.
-           ..4...2.8
-           9.75..834
-           ..8..3...
-           5...47.2.
-           '''
+  easy = '''
+3784.9...
+2....14.9
+1.9.5.3..
+71....25.
+....7....
+.92....84
+..4.2.8.3
+5.71....2
+...9.6547
+'''
 
-  $("#stdin").val(sample)
+  hard = '''
+4...8.3..
+.7..63..5
+.......46
+.6.357...
+.8.....3.
+...648.2.
+14.......
+7..93..6.
+..2.7...8
+'''
+
+  evil = '''
+..1...39.
+.....1.8.
+76..4..2.
+....98...
+3...2...8
+...57....
+.1..3..54
+.2.9.....
+.83...6..
+'''
+
+  $("#stdin").val(hard)
 
   for j in [0..8]
     for i in [0..8]
       color_adjacent(i,j)
 
 
-  $("#input-b").click ->
+  inject = ->
     text = $("#stdin").val()
 
     rows = text.split("\n")
@@ -465,6 +495,9 @@ $(document).ready ->
       r += 1
 
     log 'injecting input into the grid'
+
+  $("#input-b").click inject
+  inject()
 
 
   $("#solve-b").click ->
