@@ -1,5 +1,10 @@
 $(document).ready ->
 
+  # delay after filling in cells
+  fdel = 500
+  # delay between strategies
+  sdel = 1000
+
   ## ---------------------------------------------------------------------------
   ## General Helper Functions --------------------------------------------------
 
@@ -11,6 +16,12 @@ $(document).ready ->
     for i in [0...xs.length]
       return false if xs[i] != ys[i]
     return true
+
+  set_subtract = (xs, ys) ->
+    result = []
+    for x in xs
+      result.push x unless x in ys
+    return result
 
   # count the number of elements of an array which are greater than 0. this will
   # be used for a grid to see how many elements have been filled into particular
@@ -62,11 +73,47 @@ $(document).ready ->
 
   ## Interaction with Sudoku grid HTML input elements.
 
+  sel_row = (x,y) ->
+    [b_x, b_y, s_x, s_y] = cart_to_group x, y
+    s = ""
+    for i in [0..2]
+      for j in [0..2]
+        s += ".gr#{b_y} .gc#{i} .r#{s_y} .c#{j}, " unless i == b_x and j == s_x
+    return s
+
+  sel_col = (x,y) ->
+    [b_x, b_y, s_x, s_y] = cart_to_group x, y
+    s = ""
+    for i in [0..2]
+      for j in [0..2]
+        s += ".gr#{i} .gc#{b_x} .r#{j} .c#{s_x}, " unless i == b_y and j == s_y
+    return s
+
+  sel_group = (x,y) ->
+    [b_x, b_y, s_x, s_y] = cart_to_group x, y
+    s = ""
+    for i in [0..2]
+      for j in [0..2]
+        s += ".gr#{b_y} .gc#{b_x} .r#{j} .c#{i}, " unless i == s_x and j == s_y
+    return s
+
+
   # a low-level function to get the JQuery selector for the HTML table cell at
   # the specified cartesian coordinates in the Sudoku grid.
   sel = (x, y) ->
     [b_x, b_y, s_x, s_y] = cart_to_group x,y
     return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
+
+  color_adjacent = (x,y) ->
+    fn1 = ->
+      $(sel_group(x,y)).addClass("adjacent2")
+      $(sel_col(x,y)).addClass("adjacent")
+      $(sel_row(x,y)).addClass("adjacent")
+    fn2 = ->
+      $(sel_group(x,y)).removeClass("adjacent2")
+      $(sel_col(x,y)).removeClass("adjacent")
+      $(sel_row(x,y)).removeClass("adjacent")
+    $(sel(x,y)).hover(fn1, fn2)
 
   # a low-level function to get the value of the input HTML element at the
   # specified position in the Sudoku grid.
@@ -251,6 +298,7 @@ $(document).ready ->
       init(@cell_cant_arrays, 81, -> 0)
 
       @solve_iter = 0
+      @updated = true # this initial value turns out to matter
       @desperate = false
 
     # returns the values the cell must be if that info is currently stored;
@@ -258,10 +306,28 @@ $(document).ready ->
     cell_must: (i) ->
       if @cell_must_arrays[i] == 0 then null else @cell_must_arrays[i]
 
+    # sets a list of values that a cell must be. returns whether the setting was
+    # necessary, ie if an identical array was already present.
+    set_cell_must: (i, a) ->
+      if @cell_must(i)? and eq(@cell_must(i), a)
+        retun false
+      else
+        @cell_must_arrays[i] = a
+        return true
+
     # returns the values the cell cant be if that info is currently stored;
     # otherwise returns null.
     cell_cant: (i) ->
       if @cell_cant_arrays[i] == 0 then null else @cell_cant_arrays[i]
+
+    # sets a list of values that a cell cant be. returns whether the setting was
+    # necessary, ie if an identical array was already present.
+    set_cell_cant: (i, a) ->
+      if @cell_cant(i)? and eq(@cell_cant(i), a)
+        return false
+      else
+        @cell_cant_arrays[i] = a
+        return true
 
     # determines if it is possible to put value v at index i of the grid.
     cell_is_possible: (v, i) ->
@@ -271,84 +337,86 @@ $(document).ready ->
 
     # STRATEGIES ---------------------------------------------------------------
 
-    # Returns true if the grid has been updated (or, if @desperate, then if any
-    # knowledge has been updated)
-    cellByCell: ->
-      log (if @desperate then "desperately " else "") + "performing CellByCell"
+    cell_by_cell_loop: (i) ->
+      can = []
 
-      updated = false
+      [x,y] = @grid.base_to_cart i
 
-      # for each cell index
-      for i in [0...81]
-        can = []
+      next_step = @cell_by_cell_loop.bind(@, i+1)
+      done = @solve_loop.bind(@)
 
-        # only proceed if the cell is unknown, and if desperate or if there is
-        # enough info to make this strategy seem reasonable.
-        if @grid.get_b(i) == 0 and (@desperate or
-                                   num_pos(@grid.get_group_of(i)) >= 4 or
-                                   num_pos(@grid.get_col_of(i)) >= 4 or
-                                   num_pos(@grid.get_row_of(i)) >= 4)
+      # only proceed if the cell is unknown, and if desperate or if there is
+      # enough info to make this strategy seem reasonable.
+      if @grid.get_b(i) == 0 and (@desperate or
+                                  num_pos(@grid.get_group_of(i)) >= 4 or
+                                  num_pos(@grid.get_col_of(i)) >= 4 or
+                                  num_pos(@grid.get_row_of(i)) >= 4)
+        # store which values are possible for this cell.
+        for v in [1..9]
+          can.push v if @cell_is_possible v, i
 
-          # store which values are possible for the cell
-          for v in [1..9]
-            can.push v if @cell_is_possible v, i
-
-          # set the cell's value if only one value is possible
-          if can.length == 1
+        switch can.length
+          when 1
+            # set the cell's value if only one value is possible.
             desp_string = if @desperate then 'desperate ' else ''
-            [x,y] = @grid.base_to_cart(i)
-            log "Setting (#{x}, #{y}) to #{can[0]} by #{desp_string}CellByCell"
+            log "Setting (#{x}, #{y}) to #{can[0]} by #{desp_string}Cell By Cell"
 
             @grid.set_b(i, can[0])
-            updated = true
+            @updated = true
 
-          # store the cell-must-be-one-of-these-values info if there are 2 or 3
-          # possible values, or if there are 4 and you're desperate
-          if can.length == 2 or can.length == 3 or
-             (@desperate and can.length == 4)
-            # only store it and mark as updated if the info wasn't previously
-            # there.
-            unless @cell_must(i)? and eq(@cell_must(i), can)
-              @cell_must_arrays[i] = can
-              updated = if @desperate then true else false
+            if i == 80 then setTimeout(done, sdel) else setTimeout(next_step, fdel)
 
-          # if we're desperate and we don't have info about what value this cell
-          # must be already (possibly filled in just above), then there are
-          # several possibilites and only a couple ruled out, so we'll instead
-          # store the ruled out possibilites.
-          if @desperate and not @cell_must(i)?
-            cant = []
-            for v in [1..9]
-              cant.push v unless @cell_is_possible v, i
+          when 2,3
+            # store the cell-must-be-one-of-these-values info if there are 2 or
+            # 3 possible values.
+            @updated = @desperate and @set_cell_must(i, can)
 
-            unless @cell_cant(i)? and eq(@cell_cant(i), cant)
-              @cell_cant_arrays[i] = cant
-              updated = if @desperate then true else false
+            if i == 80 then setTimeout(done, sdel) else next_step()
 
-      # this will be set to true if any info was updated on any cells.
-      return updated
+          when 4
+            # store the cell-must-be-one-of-these-values info if we're desperate
+            # and there are 4 possible values.
+            if @desperate
+              @updated = @set_cell_must(i, can)
+
+            if i == 80 then setTimeout(done, sdel) else next_step()
+
+          else
+            # if this cell can be more than 4 things and we're desperate, then
+            # store info about what cells aren't possible.
+            if @desperate
+              cant = set_subtract([1..9], can)
+
+              @updated = @set_cell_cant(i, cant)
+
+            if i == 80 then setTimeout(done, sdell) else next_step()
+      else
+        if i == 80 then setTimeout(done, sdell) else next_step()
+
+    cell_by_cell: ->
+      log (if @desperate then "desperately " else "") + "performing Cell By Cell"
+
+      @updated = false
+
+      @cell_by_cell_loop(0)
 
     # SOLVE LOOP ---------------------------------------------------------------
 
     solve_loop : ->
-      grid_changed = @cellByCell()
-
-      if not grid_changed
+      if not @updated
         # give up if we were desperate and didn't get anywhere.
         if @desperate
           @solve_loop_done()
         # if we weren't desperate, then set to desperate and try again.
         else
           @desperate = true
-          updated = true
 
-      # finish if the grid is complete or we've done too much effort, otherwise
-      # proceed with the solving.
+      # finish if the grid is complete or we've done too much effort
       if @grid.is_valid() or @solve_iter > 100
         @solve_loop_done()
       else
-        next_step = @solve_loop.bind(@)
-        setTimeout(next_step, 500)
+        # this will set @updated, and call solve_loop recursively.
+        @cell_by_cell()
 
     solve_loop_done: ->
       log if @is_valid() then "Grid solved! :)" else "Grid not solved :("
@@ -374,6 +442,11 @@ $(document).ready ->
 
   $("#stdin").val(sample)
 
+  for j in [0..8]
+    for i in [0..8]
+      color_adjacent(i,j)
+
+
   $("#input-b").click ->
     text = $("#stdin").val()
 
@@ -398,4 +471,3 @@ $(document).ready ->
     g = new Grid()
     s = new Solver(g)
     s.solve()
-
