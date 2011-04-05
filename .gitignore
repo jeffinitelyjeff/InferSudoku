@@ -2,3 +2,5 @@ jquery*
 *.js
 *.css
 .emacs*
+.sass-cache/*
+*/.sass-cache/*
