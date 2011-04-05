@@ -1,36 +1,36 @@
 $(document).ready ->
 
-  # delay after filling in cells
-  fdel = 50
-  # delay between strategies
-  sdel = 100
+  settings =
+    # delay after filling in cells
+    fdel: 50
+    # delay between strategies
+    sdel: 100
 
-  ## ---------------------------------------------------------------------------
-  ## General Helper Functions --------------------------------------------------
+  helpers =
+    init: (a, len, fn_value) ->
+      a[i] = fn_value() for i in a[1..len]
 
-  init = (a, len, fn_value) ->
-    a[i] = fn_value() for i in a[1..len]
+    eq: (xs, ys) ->
+      return false if xs.length != ys.length
+      if xs.length == 1
+        return xs[0] == ys[0]
+      else
+        return xs[0] == ys[0] and @eq(xs[1...xs.length], ys[1...ys.length])
 
-  eq = (xs, ys) ->
-    return false if xs.length != ys.length
-    for i in [0...xs.length]
-      return false if xs[i] != ys[i]
-    return true
+    set_subtract: (xs, ys) ->
+      result = []
+      for x in xs
+        result.push x unless x in ys
+      return result
 
-  set_subtract = (xs, ys) ->
-    result = []
-    for x in xs
-      result.push x unless x in ys
-    return result
-
-  # count the number of elements of an array which are greater than 0. this will
-  # be used for a grid to see how many elements have been filled into particular
-  # rows/cols/groups (empty values are stored as 0's).
-  num_pos = (xs) ->
-    i = 0
-    for x in xs
-      i += 1 if x > 0
-    return i
+    # count the number of elements of an array which are greater than 0. this will
+    # be used for a grid to see how many elements have been filled into particular
+    # rows/cols/groups (empty values are stored as 0's).
+    num_pos: (xs) ->
+      i = 0
+      for x in xs
+        i += 1 if x > 0
+      return i
 
   ## ----------------------------------------------------------------------------
   ## Low-level Utility Functions ------------------------------------------------
@@ -286,7 +286,7 @@ $(document).ready ->
       # 4 elements; if there are 5 possibilities, then it's easier (and more
       # human-like) to store that 4 possibilities are ruled out.
       @cell_must_arrays = []
-      init(@cell_must_arrays, 81, -> 0)
+      helpers.init(@cell_must_arrays, 81, -> 0)
 
       # which values each cell cannot be; this info will ordinarily only be
       # stored if the algorithm is desperate, as it does not immediately help
@@ -295,7 +295,7 @@ $(document).ready ->
       # easier (and more human-like) to store the 4 possibilites instead of the
       # 5 ruled out ones.
       @cell_cant_arrays = []
-      init(@cell_cant_arrays, 81, -> 0)
+      helpers.init(@cell_cant_arrays, 81, -> 0)
 
       @solve_iter = 0
       @updated = true # this initial value turns out to matter
@@ -309,7 +309,7 @@ $(document).ready ->
     # sets a list of values that a cell must be. returns whether the setting was
     # necessary, ie if an identical array was already present.
     set_cell_must: (i, a) ->
-      if @cell_must(i)? and eq(@cell_must(i), a)
+      if @cell_must(i)? and helpers.eq(@cell_must(i), a)
         retun false
       else
         @cell_must_arrays[i] = a
@@ -323,7 +323,7 @@ $(document).ready ->
     # sets a list of values that a cell cant be. returns whether the setting was
     # necessary, ie if an identical array was already present.
     set_cell_cant: (i, a) ->
-      if @cell_cant(i)? and eq(@cell_cant(i), a)
+      if @cell_cant(i)? and helpers.eq(@cell_cant(i), a)
         return false
       else
         @cell_cant_arrays[i] = a
@@ -350,9 +350,9 @@ $(document).ready ->
       # only proceed if the cell is unknown, and if desperate or if there is
       # enough info to make this strategy seem reasonable.
       if @grid.get_b(i) == 0 and (@desperate or
-                                  num_pos(@grid.get_group_of(i)) >= 4 or
-                                  num_pos(@grid.get_col_of(i)) >= 4 or
-                                  num_pos(@grid.get_row_of(i)) >= 4)
+                                  helpers.num_pos(@grid.get_group_of(i)) >= 4 or
+                                  helpers.num_pos(@grid.get_col_of(i)) >= 4 or
+                                  helpers.num_pos(@grid.get_row_of(i)) >= 4)
         # store which values are possible for this cell.
         for v in [1..9]
           can.push v if @cell_is_possible v, i
@@ -387,7 +387,7 @@ $(document).ready ->
             # if this cell can be more than 4 things and we're desperate, then
             # store info about what cells aren't possible.
             if @desperate
-              cant = set_subtract([1..9], can)
+              cant = helpers.set_subtract([1..9], can)
 
               @updated = @set_cell_cant(i, cant)
 
