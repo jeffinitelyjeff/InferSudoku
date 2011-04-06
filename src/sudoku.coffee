@@ -6,13 +6,21 @@ $(document).ready ->
     # delay between strategies
     sdel: 100
 
+  ## ---------------------------------------------------------------------------
+  ## General Helpers -----------------------------------------------------------
+
   helpers =
+
+    ## Basic helper functions.
+
     init: (a, len, fn_value) ->
       a[i] = fn_value() for i in a[1..len]
 
     eq: (xs, ys) ->
       return false if xs.length != ys.length
-      if xs.length == 1
+      if xs.length == 0
+        return true
+      else if xs.length == 1
         return xs[0] == ys[0]
       else
         return xs[0] == ys[0] and @eq(xs[1...xs.length], ys[1...ys.length])
@@ -23,14 +31,97 @@ $(document).ready ->
         result.push x unless x in ys
       return result
 
-    # count the number of elements of an array which are greater than 0. this will
-    # be used for a grid to see how many elements have been filled into particular
-    # rows/cols/groups (empty values are stored as 0's).
+    # count the number of elements of an array which are greater than 0. this
+    # will be used for a grid to see how many elements have been filled into
+    # particular rows/cols/groups (empty values are stored as 0's).
     num_pos: (xs) ->
       i = 0
       for x in xs
         i += 1 if x > 0
       return i
+
+    ## Coordinate manipulation.
+
+    # cartesian coordinates -> group coordinates
+    # x,y -> [b_x, b_y, s_x, s_y]
+    # two parameters are expected, but if only one parameter is passed, then the
+    # first argument is treated as an array of the two parameters.
+    cart_to_group: (x,y) ->
+      unless y?
+        y = x[1]
+        x = x[0]
+
+      b_x = Math.floor x / 3 # which big column
+      b_y = Math.floor y / 3 # which big row
+      s_x = Math.floor x % 3 # which small column within b_x
+      s_y = Math.floor y % 3 # which small row within b_y
+
+      return [b_x, b_y, s_x, s_y]
+
+    # group coordinates -> cartesian coordinates
+    # b_x,b_y,s_x,s_y -> [x, y]
+    group_to_cart: (b_x, b_y, s_x, s_y) ->
+      x = 3*b_x + s_x
+      y = 3*b_y + s_y
+
+      return [x, y]
+
+  ## ---------------------------------------------------------------------------
+  ## Helpers for interactions with the DOM -------------------------------------
+
+  domhelpers =
+
+    ## JQuery selectors.
+
+    sel_row: (x,y) ->
+      [b_x, b_y, s_x, s_y] = helpers.cart_to_group x, y
+      s = ""
+      for i in [0..2]
+        for j in [0..2]
+          s += ".gr#{b_y} .gc#{i} .r#{s_y} .c#{j}, " unless i == b_x and j == s_x
+      return s
+
+    sel_col: (x,y) ->
+      [b_x, b_y, s_x, s_y] = helpers.cart_to_group x, y
+      s = ""
+      for i in [0..2]
+        for j in [0..2]
+          s += ".gr#{i} .gc#{b_x} .r#{j} .c#{s_x}, " unless i == b_y and j == s_y
+      return s
+
+    sel_group: (x,y) ->
+      [b_x, b_y, s_x, s_y] = helpers.cart_to_group x, y
+      s = ""
+      for i in [0..2]
+        for j in [0..2]
+          s += ".gr#{b_y} .gc#{b_x} .r#{j} .c#{i}, " unless i == s_x and j == s_y
+      return s
+
+    sel: (x, y) ->
+      [b_x, b_y, s_x, s_y] = helpers.cart_to_group x,y
+      return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
+
+    color_adjacent: (x,y) ->
+      fn1 = ->
+        $(@sel_group(x,y)).addClass("adjacent2")
+        $(@sel_col(x,y)).addClass("adjacent")
+        $(@sel_row(x,y)).addClass("adjacent")
+      fn2 = ->
+        $(@sel_group(x,y)).removeClass("adjacent2")
+        $(@sel_col(x,y)).removeClass("adjacent")
+        $(@sel_row(x,y)).removeClass("adjacent")
+      $(@sel(x,y)).hover(fn1, fn2)
+
+    # a low-level function to get the value of the input HTML element at the
+    # specified position in the Sudoku grid.
+    get_input_val: (x, y) ->
+      $(@sel(x,y) + " .num").val()
+
+    # set_input_val(x,y,v) is a low-level function to set the value of the input
+    # HTML element at the specified position in the Sudoku grid.
+    set_input_val: (x, y, v) ->
+      $(@sel(x,y) + " .num").val(v)
+
 
   ## ----------------------------------------------------------------------------
   ## Low-level Utility Functions ------------------------------------------------
@@ -45,85 +136,8 @@ $(document).ready ->
 
   log 'init webapp'
 
-  ## Coordinate manipulation.
-
-  # cartesian coordinates -> group coordinates
-  # x,y -> [b_x, b_y, s_x, s_y]
-  # two parameters are expected, but if only one parameter is passed, then the
-  # first argument is treated as an array of the two parameters.
-  cart_to_group = (x,y) ->
-    unless y?
-      y = x[1]
-      x = x[0]
-
-    b_x = Math.floor x / 3 # which big column
-    b_y = Math.floor y / 3 # which big row
-    s_x = Math.floor x % 3 # which small column within b_x
-    s_y = Math.floor y % 3 # which small row within b_y
-
-    return [b_x, b_y, s_x, s_y]
-
-  # group coordinates -> cartesian coordinates
-  # b_x,b_y,s_x,s_y -> [x, y]
-  group_to_cart = (b_x, b_y, s_x, s_y) ->
-    x = 3*b_x + s_x
-    y = 3*b_y + s_y
-
-    return [x, y]
-
-  ## Interaction with Sudoku grid HTML input elements.
-
-  sel_row = (x,y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_group x, y
-    s = ""
-    for i in [0..2]
-      for j in [0..2]
-        s += ".gr#{b_y} .gc#{i} .r#{s_y} .c#{j}, " unless i == b_x and j == s_x
-    return s
-
-  sel_col = (x,y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_group x, y
-    s = ""
-    for i in [0..2]
-      for j in [0..2]
-        s += ".gr#{i} .gc#{b_x} .r#{j} .c#{s_x}, " unless i == b_y and j == s_y
-    return s
-
-  sel_group = (x,y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_group x, y
-    s = ""
-    for i in [0..2]
-      for j in [0..2]
-        s += ".gr#{b_y} .gc#{b_x} .r#{j} .c#{i}, " unless i == s_x and j == s_y
-    return s
 
 
-  # a low-level function to get the JQuery selector for the HTML table cell at
-  # the specified cartesian coordinates in the Sudoku grid.
-  sel = (x, y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_group x,y
-    return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
-
-  color_adjacent = (x,y) ->
-    fn1 = ->
-      $(sel_group(x,y)).addClass("adjacent2")
-      $(sel_col(x,y)).addClass("adjacent")
-      $(sel_row(x,y)).addClass("adjacent")
-    fn2 = ->
-      $(sel_group(x,y)).removeClass("adjacent2")
-      $(sel_col(x,y)).removeClass("adjacent")
-      $(sel_row(x,y)).removeClass("adjacent")
-    $(sel(x,y)).hover(fn1, fn2)
-
-  # a low-level function to get the value of the input HTML element at the
-  # specified position in the Sudoku grid.
-  get_input_val = (x, y) ->
-    $(sel(x,y) + " .num").val()
-
-  # set_input_val(x,y,v) is a low-level function to set the value of the input
-  # HTML element at the specified position in the Sudoku grid.
-  set_input_val = (x, y, v) ->
-    $(sel(x,y) + " .num").val(v)
 
 
 
@@ -143,7 +157,7 @@ $(document).ready ->
       a = []
       for j in [0..8]
         for i in [0..8]
-          v = get_input_val i, j
+          v = domhelpers.get_input_val i, j
           a.push if v is '' then 0 else parseInt(v)
       return a
 
@@ -173,7 +187,7 @@ $(document).ready ->
 
     # access an element using group coordinates
     get_g: (b_x, b_y, s_x, s_y) ->
-      @get_b @cart_to_base group_to_cart(b_x, b_y, s_x, s_y)
+      @get_b @cart_to_base helpers.group_to_cart(b_x, b_y, s_x, s_y)
 
     set_b: (i, v) ->
       # store in internal representation
@@ -182,11 +196,11 @@ $(document).ready ->
       # change displayed value in HTML
       [x,y] = @base_to_cart i
       if v is 0
-        set_input_val(x,y,'')
+        domhelpers.set_input_val(x,y,'')
       else
-        set_input_val(x,y,v)
-        $(sel(x,y)).addClass('new')
-        $(sel(x,y))
+        domhelpers.set_input_val(x,y,v)
+        $(domhelpers.sel(x,y)).addClass('new')
+        $(domhelpers.sel(x,y))
           .addClass('highlight', 500).delay(500).removeClass('highlight', 2000)
 
       # TODO update stored info
@@ -195,7 +209,7 @@ $(document).ready ->
       @set_b(@cart_to_base(x,y), v)
 
     set_g: (b_x, b_y, s_x, s_y) ->
-      @set_b(@cart_to_base group_to_cart(b_x, b_y, s_x, s_y), v)
+      @set_b(@cart_to_base helpers.group_to_cart(b_x, b_y, s_x, s_y), v)
 
     # returns an array of all the values in a particular group, either specified
     # as a pair of coordinates or as an index (so the 6th group is the group
@@ -221,7 +235,7 @@ $(document).ready ->
       else
         cart = @base_to_cart x
 
-      [b_x, b_y, s_x, s_y] = cart_to_group cart
+      [b_x, b_y, s_x, s_y] = helperscart_to_group cart
       @get_group b_x, b_y
 
     # gets the arroy of values from particular row
@@ -470,11 +484,11 @@ $(document).ready ->
 .83...6..
 '''
 
-  $("#stdin").val(hard)
+  $("#stdin").val(easy)
 
   for j in [0..8]
     for i in [0..8]
-      color_adjacent(i,j)
+      domhelpers.color_adjacent(i,j)
 
 
   inject = ->
@@ -489,7 +503,10 @@ $(document).ready ->
       c = 0
 
       for v in cols
-        if v is '.' then set_input_val(c,r,'') else set_input_val(c,r,v)
+        if v is '.'
+          domhelpers.set_input_val(c,r,'')
+        else
+          domhelpers.set_input_val(c,r,v)
         c += 1
 
       r += 1
