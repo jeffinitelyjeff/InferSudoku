@@ -4,7 +4,7 @@ settings =
   # delay between strategies
   sdel: 100
   # number of times to run the solve loop before dying
-  max_solve_loop_iter: 100
+  max_solve_iter: 100
 
 ## ---------------------------------------------------------------------------
 ## General Helpers -----------------------------------------------------------
@@ -186,7 +186,8 @@ class Grid
   get_b: (b_x, b_y, s_x, s_y) ->
     @get @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
 
-  set_b: (i, v) ->
+  # set a cell specified with a base index i to a value v.
+  set: (i, v) ->
     # store in internal representation
     @base_array[i] = v
 
@@ -197,16 +198,16 @@ class Grid
     else
       domhelpers.set_input_val(x,y,v)
       $(domhelpers.sel(x,y)).addClass('new')
-      $(domhelpers.sel(x,y))
-        .addClass('highlight', 500).delay(500).removeClass('highlight', 2000)
+      $(domhelpers.sel(x,y)).
+        addClass('highlight', 500).delay(500).removeClass('highlight', 2000)
 
-    # TODO update stored info
-
+  # set a cell specified by cartesian coordinates (x,y) to a value v.
   set_c: (x,y,v) ->
-    @set_b(@cart_to_base(x,y), v)
+    @set(@cart_to_base(x,y), v)
 
-  set_g: (b_x, b_y, s_x, s_y) ->
-    @set_b(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v)
+  # set a cell specified by box coordinates (b_x,b_y,s_x,s_y) to a value v.
+  set_b: (b_x, b_y, s_x, s_y) ->
+    @set(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v)
 
   # returns an array of all the values in a particular box, either specified
   # as a pair of coordinates or as an index (so the 6th box is the box
@@ -291,63 +292,61 @@ class Grid
 
 class Solver
   constructor: (@grid) ->
-    # which values each cell can be; this info will ordinarily be stored if
-    # there are only a couple possible values, or if the algorithm is
-    # desperate (and then it only makes sense to store this if there are up to
-    # 4 elements; if there are 5 possibilities, then it's easier (and more
-    # human-like) to store that 4 possibilities are ruled out.
-    @cell_must_arrays = []
-    helpers.init(@cell_must_arrays, 81, -> 0)
-
-    # which values each cell cannot be; this info will ordinarily only be
-    # stored if the algorithm is desperate, as it does not immediately help
-    # find values to fill in. it only makes sense to store this if there are
-    # up to 4 elements; if there are 5 possibilites ruled out, then it's
-    # easier (and more human-like) to store the 4 possibilites instead of the
-    # 5 ruled out ones.
-    @cell_cant_arrays = []
-    helpers.init(@cell_cant_arrays, 81, -> 0)
+    # Cell restrictions will contain info gathered about what value a cell can
+    # or cannot be. Each cell restriction will be an object, with a 'type' field
+    # either set to "cant" or "must" to specify which kind of restriction info
+    # it is storing and with a 'vals' field that is an array of values which the
+    # cell either can or cannot be (again, depending on the value of the 'type'
+    # field).
+    @cell_restrictions = []
+    helpers.init(@cell_restrictions, 81, -> {type: "none", vals: []})
 
     @solve_iter = 0
-    @updated = true # this initial value turns out to matter
-    @desperate = false
 
-  # returns the values the cell must be if that info is currently stored;
-  # otherwise returns null.
-  cell_must: (i) ->
-    if @cell_must_arrays[i] == 0 then null else @cell_must_arrays[i]
+    @last_strategy = "none"
 
-  # sets a list of values that a cell must be. returns whether the setting was
-  # necessary, ie if an identical array was already present.
-  set_cell_must: (i, a) ->
-    if @cell_must(i)? and helpers.eq(@cell_must(i), a)
-      return false
-    else
-      @cell_must_arrays[i] = a
-      return true
+  # get an array of all naively impossible values to fill into the cell at base
+  # index i in the grid. the impossible values are simply the values filled in
+  # to cells that share a row, col, or box with this cell. will return -1 if the
+  # cell already has a value.
+  naive_impossible_values: (i) ->
+    return -1 if @grid.get(i) > 0
 
-  # returns the values the cell cant be if that info is currently stored;
-  # otherwise returns null.
-  cell_cant: (i) ->
-    if @cell_cant_arrays[i] == 0 then null else @cell_cant_arrays[i]
+    @grid.get_row_of(i).
+      concat(@grid.get_col_of(i)).
+        concat(@grid.get_box_of(i))
 
-  # sets a list of values that a cell cant be. returns whether the setting was
-  # necessary, ie if an identical array was already present.
-  set_cell_cant: (i, a) ->
-    if @cell_cant(i)? and helpers.eq(@cell_cant(i), a)
-      return false
-    else
-      @cell_cant_arrays[i] = a
-      return true
+  # wrapper for @grid.set which will update the knowledge base if it needs to.
+  set: (i, v) ->
+    @grid.set i,v
 
-  # determines if it is possible to put value v at index i of the grid.
-  cell_is_possible: (v, i) ->
-    v not in @grid.get_row_of(i) and
-    v not in @grid.get_col_of(i) and
-    v not in @grid.get_box_of(i)
+    # FIXME: update knowledge base, and test whether update should be done.
+
+  # wrapper for @grid.set_c which will update the knowledge base if it needs to.
+  set_c: (x,y,v) ->
+    @set(@cart_to_base(x,y), v)
+
+  # wrapper for @grid.set_b which will update the knowldege base if it needs to.
+  set_b: (b_x, b_y, s_x, s_y) ->
+    @set(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v)
+
+  # adds a restriction to the knowledge base mandating that the cell with base
+  # index i cannot be the value v. will either create a cant list, update a cant
+  # list, turn a cant list into a must list, update a must list, or set a value.
+  add_cant: (i, v) ->
+    r = @cell_restrictions[i]
+
+    if r.type == "none"
+      r.type = "cant"
+      vals.push v
+    else if r.type == "cant"
+      # FIXME add to cant array or convert to a must array
+    else if r.type == "must"
+      # FIXME add to must array or set the value
 
   # STRATEGIES ---------------------------------------------------------------
 
+  ###
   cell_by_cell_loop: (i) ->
     can = []
 
@@ -415,28 +414,56 @@ class Solver
     @updated = false
 
     @cell_by_cell_loop(0)
+  ###
+
+  # GridScan -------------------------------------------------------------------
+
+  should_gridscan: ->
+    # FIXME: GridScan should be run more in the beginning, and less in the
+    # end. Need a good heuristic to represent the "beginning" and the "end".
+
+    # for now, will only run gridscan FIRST. that is, once another technique is
+    # tried, will never run gridscan again. this clearly isn't ideal, I feel
+    # there are times I might use gridscan in real life even after doing somes
+    # other strategies.
+    @last_strategy == "none" or @last_strategy == "GridScan"
 
   # SOLVE LOOP ---------------------------------------------------------------
 
+  choose_strategy: ->
+    if @should_gridscan()
+      return @GridScan()
+
+    # FIXME these should be filled in once they're implemented.
+
+    # if @should_thinkinsidethebox()
+    #   return @ThinkInsideTheBox()
+
+    # if @should_smartgridscan()
+    #   return @SmartGridScan()
+
+    # if @should_thinkoutsidethebox()
+    #   return @ThinkOutsideTheBox()
+
+    # if @should_exhaustionsearch()
+    #   return @ExhaustionSearch()
+
+    # if @should_desperationsearch()
+    #   return @DesperationSearch()
+
   solve_loop: ->
     @solve_iter += 1
-    log "iteration #{@solve_iter}" + if @desperate then ", desperate" else ""
+    log "iteration #{@solve_iter}"
 
-    if not @updated
-      # give up if we were desperate and didn't get anywhere.
-      if @desperate
-        @solve_loop_done()
-      # if we weren't desperate, then set to desperate and try again.
-      else
-        @desperate = true
+    # done if the grid is complete or we've done too many iterations
+    done = @grid.is_valid() or @solve_iter > settings.max_solve_iter
 
-    # finish if the grid is complete or we've done too much effort
-    if @grid.is_valid() or @solve_iter > settings.max_solve_loop_iter
-      log 'breaking out?'
+    if done
       @solve_loop_done()
     else
-      # this will set @updated, and call solve_loop recursively.
-      @cell_by_cell()
+      # this will choose and call a strategy, which will call solve_loop
+      # recursively.
+      @choose_strategy()
 
   solve_loop_done: ->
     log if @grid.is_valid() then "Grid solved! :)" else "Grid not solved :("
