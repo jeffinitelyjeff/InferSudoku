@@ -479,40 +479,41 @@ evil = '''
 .83...6..
 '''
 
-$("#stdin").val(easy)
+$(document).ready ->
+  $("#stdin").val(easy)
 
-for j in [0..8]
-  for i in [0..8]
-    domhelpers.color_adjacent(i,j)
-
-
-inject = ->
-  text = $("#stdin").val()
-
-  rows = text.split("\n")
-  r = 0
-
-  for row in rows
-
-    cols = row.split('')
-    c = 0
-
-    for v in cols
-      if v is '.'
-        domhelpers.set_input_val(c,r,'')
-      else
-        domhelpers.set_input_val(c,r,v)
-      c += 1
-
-    r += 1
-
-  log 'injecting input into the grid'
-
-$("#input-b").click inject
-inject()
+  for j in [0..8]
+    for i in [0..8]
+      domhelpers.color_adjacent(i,j)
 
 
-$("#solve-b").click ->
-  g = new Grid()
-  s = new Solver(g)
-  s.solve()
+  inject = ->
+    text = $("#stdin").val()
+
+    rows = text.split("\n")
+    r = 0
+
+    for row in rows
+
+      cols = row.split('')
+      c = 0
+
+      for v in cols
+        if v is '.'
+          domhelpers.set_input_val(c,r,'')
+        else
+          domhelpers.set_input_val(c,r,v)
+        c += 1
+
+      r += 1
+
+    log 'injecting input into the grid'
+
+  $("#input-b").click inject
+  inject()
+
+
+  $("#solve-b").click ->
+    g = new Grid()
+    s = new Solver(g)
+    s.solve()
