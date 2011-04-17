@@ -1,7 +1,7 @@
 settings =
   # delay after filling in cells
   fdel: 50
-    # delay between strategies
+  # delay between strategies
   sdel: 100
 
 ## ---------------------------------------------------------------------------
@@ -16,12 +16,11 @@ helpers =
 
   eq: (xs, ys) ->
     return false if xs.length != ys.length
-    if xs.length == 0
-      return true
-    else if xs.length == 1
-      return xs[0] == ys[0]
-    else
-      return xs[0] == ys[0] and @eq(xs[1...xs.length], ys[1...ys.length])
+
+    for i in xs.length
+      return false if xs[i] != ys[i]
+
+    return true
 
   set_subtract: (xs, ys) ->
     result = []
