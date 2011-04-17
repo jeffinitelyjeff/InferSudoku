@@ -173,16 +173,16 @@ class Grid
     return [x,y]
 
   # access an element using base indices.
-  get_b: (i) ->
+  get: (i) ->
     @base_array[i]
 
   # access an element using cartesian coordinates.
   get_c: (x,y) ->
-    @get_b @cart_to_base(x,y)
+    @get @cart_to_base(x,y)
 
   # access an element using box coordinates
-  get_g: (b_x, b_y, s_x, s_y) ->
-    @get_b @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
+  get_b: (b_x, b_y, s_x, s_y) ->
+    @get @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
 
   set_b: (i, v) ->
     # store in internal representation
@@ -217,7 +217,7 @@ class Grid
     a = []
     for j in [0..2]
       for i in [0..2]
-        a.push @get_g(x, y, i, j)
+        a.push @get_b(x, y, i, j)
 
     return a
 
@@ -358,7 +358,7 @@ class Solver
 
     # only proceed if the cell is unknown, and if desperate or if there is
     # enough info to make this strategy seem reasonable.
-    if @grid.get_b(i) == 0 and (@desperate or
+    if @grid.get(i) == 0 and (@desperate or
                                 helpers.num_pos(@grid.get_box_of(i)) >= 4 or
                                 helpers.num_pos(@grid.get_col_of(i)) >= 4 or
                                 helpers.num_pos(@grid.get_row_of(i)) >= 4)
