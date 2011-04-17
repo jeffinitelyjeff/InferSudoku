@@ -1,65 +1,86 @@
-# Tasks
+# Tasks #
 
 - Add javascript to highlight groups/row/col on hover
 - Add button to pull random sudoku from database
 - Add server to pull random sudoku from websudoku
 
-# Things to Implement
+# Things to Implement #
 
-## Functions
+## Functions ##
 
 1. add_cant(cell, value)
 
+   Adds a restriction to the cell specifying that the call cannot take on the
+   value value. Restrictions will take on the form of a "cant" array if there
+   are only a couple value that the cell cannot be, or a "must" array if there
+   are only a couple values left that the cell can be (meaning that there are a
+   lot of value which the cell cannot be). 
+   - If neither kind of array exists, then will create a cant array containing
+     value.
+   - If the cell has a cant array of length 1-3, then will add value to it.
+   - If the cell has a cant array of length 4, then will add value to it and
+     then replace the cant array with a must array (which will be [1..9] with
+     cant set-subtracted from it).
+   - If the cell has a must array of length 4 or 3, then will remove value from
+     it.
+   - If the cell has a must array of length 2, then will remove value from it
+     and then fill in the one remaining value into the cell.
 
+## Strategies ##
 
-## Strategies
+These are listed roughly in order of when they would be used. Strategies listed
+first will be tried initially, and then strategies further down will be tried
+when higher ones stop providing results. This is only roughly true,
+though. Ideally I would like to have functions which represent heuristics for
+"is this strategy likely to help?", and so those would be consulted before
+deciding a stratgey (though the heuristics would be tried in this order, so if
+strategies A and B are both likely to help, whichever is first on this list
+would be tried first).
 
-Strategies:
+1. GridScan
 
-1 For a given group, see where the 1s, 2s, etc. are possible; fill them in if
-  there's only one valid position
-2 Repeat 1, but for a given row
-3 Repeat 1, but for a given column
-4 Use methods of the form val_in_row(5,2), and then when you get to this method,
-  turn on a flag that allows this to not just use filled in valids
+   Consider each value, in order of currently most present on the grid to least
+   present. For each value v, considre the boxes where v has not yet been filled
+   in. For each box b, see if there is only one possible location p for v based
+   on the other locations of v, and fill in v at p if there is only one such location.
+   
+2. ThinkInsideTheBox
 
+   For each box b and for each value v which has not yet been filled in within
+   b, see where v could possibly be placed within b (consulting the values in
+   corresponding rows/cols and any cant/must arrays filled in within b); if v
+   can only be placed in one position in b, then fill it in.
+   
+3. SmartGridScan
 
-IMPLEMENT:
+   Consider each value, in order of currently most present on the grid to least
+   present. For each value v, consider each box b where v has not yet been
+   filled in. Let p be the set of positions where v can be placed within b. If p
+   is a single position, then fill in v at this position. If all the positions
+   in p are in a single row or col, then call add_cant(c, v) for all cells c in
+   the raw/col outside of b.
 
-  
-add_cant(cell, value):
-  if there's no existing must/cant array for the cell, then will create a cant
-  array with just the value. if there is a cant array of length 1-3, will add
-  the value to it. if there is a cant array of length 4, then will create a must
-  array with the corresponding opposite set of valus. if thre is a must array,
-  then will remove the value from it.
+4. ThinkOutsideTheBox
 
+   For each box b and for each value v which has not yet been filled in wihtin
+   b, see where v could possibly be placed within b (consulting the values in
+   corresponding rows/cols, cant/must arrays of cells within b, and cant/must
+   arrays of cells outside of b). Let p be the set of possible positions for v
+   within b. If p is entirely within one row or col, then call add_cant(c,v) for
+   each cell c within that row or col outside of b.
 
-  
-DesperateSearch (CellByCell)
-  Look through each cell. For each cell (only consider cells which have at least
-  4 total numbers in their row/co/group), see what values it can't be based on
-  the values in its row/col/group; fill in a value if only one value is
-  possible.
-SuperDesperateSearch (CellByCell w/ desperate flag)
-  Look through each cell. For each cell (consider all cellS), see what values it
-  can't be based on the values in its row/col/group. Fill in a value if only one
-  value is possible. If 2-4 values are possible, store these values in a list of
-  values representing the cell's possible values; if 5-9 values are possible,
-  store the values that the cell cannot be in a list.
-GroupThink
-  Look through each row/col/box. For each group, get the list of values which have
-  not yet been filled in that group. For each value in that list, see where the
-  value is possible in the group (just consulting the values in cells'
-  corresponding row/col/box); if it is only possible in one position, then
-  fill it in.
-SmartGroupThink
-  Look through each row/col/box. For each group, get the list of values which
-  have not yet been filled in that group. For each value in that list, see where
-  the value is possible in the group (consulting the cells' cant or must
-  collections if they exist); if it is only possible in one position,
-  then fill it in. If it's possible in multiple positions, then, depending on
-  geometry, update corresponding the must/cant arrays of cells in corresponding
-  row/col/boxes (ie, if examining a box, and we know that a 2 can only be in the
-  top row, then update the cant/must arrays of that row).
-  
+5. ExhaustionSearch (old CellByCell)
+
+   Look through each cell. For each cell (only consider cells which have at
+   least 4 total numbers in their row/col/group), see what values it can't be
+   based on the values in its row/col/group; fill in a value if only one value
+   is possible.
+   
+6. DesperationSearch (old CellByCell w/ desperate flag)
+
+   Look through each cell. For each cell (consider all cells), see what values
+   it can't be based on the values in its row/col/group. Fill in a value if only
+   one value is possible. If 2-4 values are possible, store these values in a
+   list of values representing the cell's possible values; if 5-9 values are
+   possible, store the values that the cell cannot be in a list.
+   
