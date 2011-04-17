@@ -10,3 +10,44 @@ Strategies:
 3 Repeat 1, but for a given column
 4 Use methods of the form val_in_row(5,2), and then when you get to this method,
   turn on a flag that allows this to not just use filled in valids
+
+
+IMPLEMENT:
+
+  
+add_cant(cell, value):
+  if there's no existing must/cant array for the cell, then will create a cant
+  array with just the value. if there is a cant array of length 1-3, will add
+  the value to it. if there is a cant array of length 4, then will create a must
+  array with the corresponding opposite set of valus. if thre is a must array,
+  then will remove the value from it.
+
+
+  
+DesperateSearch (CellByCell)
+  Look through each cell. For each cell (only consider cells which have at least
+  4 total numbers in their row/co/group), see what values it can't be based on
+  the values in its row/col/group; fill in a value if only one value is
+  possible.
+SuperDesperateSearch (CellByCell w/ desperate flag)
+  Look through each cell. For each cell (consider all cellS), see what values it
+  can't be based on the values in its row/col/group. Fill in a value if only one
+  value is possible. If 2-4 values are possible, store these values in a list of
+  values representing the cell's possible values; if 5-9 values are possible,
+  store the values that the cell cannot be in a list.
+GroupThink
+  Look through each row/col/box. For each group, get the list of values which have
+  not yet been filled in that group. For each value in that list, see where the
+  value is possible in the group (just consulting the values in cells'
+  corresponding row/col/box); if it is only possible in one position, then
+  fill it in.
+SmartGroupThink
+  Look through each row/col/box. For each group, get the list of values which
+  have not yet been filled in that group. For each value in that list, see where
+  the value is possible in the group (consulting the cells' cant or must
+  collections if they exist); if it is only possible in one position,
+  then fill it in. If it's possible in multiple positions, then, depending on
+  geometry, update corresponding the must/cant arrays of cells in corresponding
+  row/col/boxes (ie, if examining a box, and we know that a 2 can only be in the
+  top row, then update the cant/must arrays of that row).
+  

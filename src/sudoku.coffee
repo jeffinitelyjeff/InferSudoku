@@ -16,10 +16,8 @@ helpers =
 
   eq: (xs, ys) ->
     return false if xs.length != ys.length
-
     for i in xs.length
       return false if xs[i] != ys[i]
-
     return true
 
   set_subtract: (xs, ys) ->
