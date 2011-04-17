@@ -3,6 +3,8 @@ settings =
   fdel: 50
   # delay between strategies
   sdel: 100
+  # number of times to run the solve loop before dying
+  max_solve_loop_iter: 100
 
 ## ---------------------------------------------------------------------------
 ## General Helpers -----------------------------------------------------------
@@ -319,7 +321,7 @@ class Solver
   # necessary, ie if an identical array was already present.
   set_cell_must: (i, a) ->
     if @cell_must(i)? and helpers.eq(@cell_must(i), a)
-      retun false
+      return false
     else
       @cell_must_arrays[i] = a
       return true
@@ -429,7 +431,7 @@ class Solver
         @desperate = true
 
     # finish if the grid is complete or we've done too much effort
-    if @grid.is_valid() or @solve_iter > 100
+    if @grid.is_valid() or @solve_iter > settings.max_solve_loop_iter
       log 'breaking out?'
       @solve_loop_done()
     else
@@ -483,7 +485,7 @@ evil = '''
 '''
 
 $(document).ready ->
-  $("#stdin").val(easy)
+  $("#stdin").val(evil)
 
   for j in [0..8]
     for i in [0..8]
