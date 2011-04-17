@@ -28,7 +28,7 @@ helpers =
 
   # count the number of elements of an array which are greater than 0. this
   # will be used for a grid to see how many elements have been filled into
-  # particular rows/cols/groups (empty values are stored as 0's).
+  # particular rows/cols/boxes (empty values are stored as 0's).
   num_pos: (xs) ->
     i = 0
     for x in xs
@@ -37,11 +37,11 @@ helpers =
 
   ## Coordinate manipulation.
 
-  # cartesian coordinates -> group coordinates
+  # cartesian coordinates -> box coordinates
   # x,y -> [b_x, b_y, s_x, s_y]
   # two parameters are expected, but if only one parameter is passed, then the
   # first argument is treated as an array of the two parameters.
-  cart_to_group: (x,y) ->
+  cart_to_box: (x,y) ->
     unless y?
       y = x[1]
       x = x[0]
@@ -53,9 +53,9 @@ helpers =
 
     return [b_x, b_y, s_x, s_y]
 
-  # group coordinates -> cartesian coordinates
+  # box coordinates -> cartesian coordinates
   # b_x,b_y,s_x,s_y -> [x, y]
-  group_to_cart: (b_x, b_y, s_x, s_y) ->
+  box_to_cart: (b_x, b_y, s_x, s_y) ->
     x = 3*b_x + s_x
     y = 3*b_y + s_y
 
@@ -69,7 +69,7 @@ domhelpers =
   ## JQuery selectors.
 
   sel_row: (x,y) ->
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_group x, y
+    [b_x, b_y, s_x, s_y] = helpers.cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
@@ -77,15 +77,15 @@ domhelpers =
     return s
 
   sel_col: (x,y) ->
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_group x, y
+    [b_x, b_y, s_x, s_y] = helpers.cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
         s += ".gr#{i} .gc#{b_x} .r#{j} .c#{s_x}, " unless i == b_y and j == s_y
     return s
 
-  sel_group: (x,y) ->
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_group x, y
+  sel_box: (x,y) ->
+    [b_x, b_y, s_x, s_y] = helpers.cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
@@ -93,16 +93,16 @@ domhelpers =
     return s
 
   sel: (x, y) ->
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_group x,y
+    [b_x, b_y, s_x, s_y] = helpers.cart_to_box x,y
     return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
 
   color_adjacent: (x,y) ->
     fn1 = ->
-      $(@sel_group(x,y)).addClass("adjacent2")
+      $(@sel_box(x,y)).addClass("adjacent2")
       $(@sel_col(x,y)).addClass("adjacent")
       $(@sel_row(x,y)).addClass("adjacent")
     fn2 = ->
-      $(@sel_group(x,y)).removeClass("adjacent2")
+      $(@sel_box(x,y)).removeClass("adjacent2")
       $(@sel_col(x,y)).removeClass("adjacent")
       $(@sel_row(x,y)).removeClass("adjacent")
     $(@sel(x,y)).hover(fn1, fn2)
@@ -180,9 +180,9 @@ class Grid
   get_c: (x,y) ->
     @get_b @cart_to_base(x,y)
 
-  # access an element using group coordinates
+  # access an element using box coordinates
   get_g: (b_x, b_y, s_x, s_y) ->
-    @get_b @cart_to_base helpers.group_to_cart(b_x, b_y, s_x, s_y)
+    @get_b @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
 
   set_b: (i, v) ->
     # store in internal representation
@@ -204,12 +204,12 @@ class Grid
     @set_b(@cart_to_base(x,y), v)
 
   set_g: (b_x, b_y, s_x, s_y) ->
-    @set_b(@cart_to_base helpers.group_to_cart(b_x, b_y, s_x, s_y), v)
+    @set_b(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v)
 
-  # returns an array of all the values in a particular group, either specified
-  # as a pair of coordinates or as an index (so the 6th group is the group
+  # returns an array of all the values in a particular box, either specified
+  # as a pair of coordinates or as an index (so the 6th box is the box
   # with b_x=0, b_y=2).
-  get_group: (x, y) ->
+  get_box: (x, y) ->
     unless y?
       y = Math.floor x / 3
       x = Math.floor x % 3
@@ -221,17 +221,17 @@ class Grid
 
     return a
 
-  # returns the array of all values in the group which this cell (specified in
+  # returns the array of all values in the box which this cell (specified in
   # cartesian coordinates if two parameters are passed, in a base index if
   # only one paramater is passed) occupies.
-  get_group_of: (x, y) ->
+  get_box_of: (x, y) ->
     if y?
       cart = [x,y]
     else
       cart = @base_to_cart x
 
-    [b_x, b_y, s_x, s_y] = helperscart_to_group cart
-    @get_group b_x, b_y
+    [b_x, b_y, s_x, s_y] = helpers.cart_to_box cart
+    @get_box b_x, b_y
 
   # gets the arroy of values from particular row
   get_col: (x) ->
@@ -260,7 +260,7 @@ class Grid
       @get_row @base_to_cart(x)[1]
 
   # determines if an array of numbers has one of each of the numbers 1..9
-  # without any repeats. will be called on rows, columns, and groups.
+  # without any repeats. will be called on rows, columns, and boxes.
   valid_array: (xs) ->
     hits = []
 
@@ -276,12 +276,12 @@ class Grid
   # rules:
   #   - each row is unique
   #   - each col is unique
-  #   - each group is unique
+  #   - each box is unique
   is_valid: ->
     for i in [0..8]
       return false unless @valid_array @get_col i
       return false unless @valid_array @get_row i
-      return false unless @valid_array @get_group i
+      return false unless @valid_array @get_box i
     return true
 
 ## ---------------------------------------------------------------------------
@@ -342,7 +342,7 @@ class Solver
   cell_is_possible: (v, i) ->
     v not in @grid.get_row_of(i) and
     v not in @grid.get_col_of(i) and
-    v not in @grid.get_group_of(i)
+    v not in @grid.get_box_of(i)
 
   # STRATEGIES ---------------------------------------------------------------
 
@@ -359,7 +359,7 @@ class Solver
     # only proceed if the cell is unknown, and if desperate or if there is
     # enough info to make this strategy seem reasonable.
     if @grid.get_b(i) == 0 and (@desperate or
-                                helpers.num_pos(@grid.get_group_of(i)) >= 4 or
+                                helpers.num_pos(@grid.get_box_of(i)) >= 4 or
                                 helpers.num_pos(@grid.get_col_of(i)) >= 4 or
                                 helpers.num_pos(@grid.get_row_of(i)) >= 4)
       # store which values are possible for this cell.
