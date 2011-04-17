@@ -140,7 +140,7 @@ log 'init webapp'
 ## Grid Class ----------------------------------------------------------------
 
 class Grid
-  constructor: ->
+  constructor = ->
     # cell values
     @base_array = @collect_input()
 
@@ -148,7 +148,7 @@ class Grid
   # --------------------------------------------------------------------------
 
   # collect the values of the input elements and return them in a 1D array.
-  collect_input: ->
+  collect_input = ->
     a = []
     for j in [0..8]
       for i in [0..8]
@@ -158,7 +158,7 @@ class Grid
 
   # cartesian coordinates -> base index
   # x,y -> i
-  cart_to_base: (x,y) ->
+  cart_to_base = (x,y) ->
     unless y?
       y = x[1]
       x = x[0]
@@ -167,24 +167,24 @@ class Grid
 
   # base index -> cartesian coordinates
   # i -> [x,y]
-  base_to_cart: (i) ->
+  base_to_cart = (i) ->
     x = Math.floor i % 9
     y = Math.floor i / 9
     return [x,y]
 
   # access an element using base indices.
-  get: (i) ->
+  get = (i) ->
     @base_array[i]
 
   # access an element using cartesian coordinates.
-  get_c: (x,y) ->
+  get_c = (x,y) ->
     @get @cart_to_base(x,y)
 
   # access an element using box coordinates
-  get_b: (b_x, b_y, s_x, s_y) ->
+  get_b = (b_x, b_y, s_x, s_y) ->
     @get @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
 
-  set_b: (i, v) ->
+  set_b = (i, v) ->
     # store in internal representation
     @base_array[i] = v
 
@@ -200,16 +200,16 @@ class Grid
 
     # TODO update stored info
 
-  set_c: (x,y,v) ->
+  set_c = (x,y,v) ->
     @set_b(@cart_to_base(x,y), v)
 
-  set_g: (b_x, b_y, s_x, s_y) ->
+  set_g = (b_x, b_y, s_x, s_y) ->
     @set_b(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v)
 
   # returns an array of all the values in a particular box, either specified
   # as a pair of coordinates or as an index (so the 6th box is the box
   # with b_x=0, b_y=2).
-  get_box: (x, y) ->
+  get_box = (x, y) ->
     unless y?
       y = Math.floor x / 3
       x = Math.floor x % 3
@@ -224,7 +224,7 @@ class Grid
   # returns the array of all values in the box which this cell (specified in
   # cartesian coordinates if two parameters are passed, in a base index if
   # only one paramater is passed) occupies.
-  get_box_of: (x, y) ->
+  get_box_of = (x, y) ->
     if y?
       cart = [x,y]
     else
@@ -234,26 +234,26 @@ class Grid
     @get_box b_x, b_y
 
   # gets the arroy of values from particular row
-  get_col: (x) ->
+  get_col = (x) ->
     (@get_c(x,i) for i in [0..8])
 
   # returns the array of all values in the col which this cell (specified in
   # cartesian coordinates if two parameters are passed, or specified in a base
   # index if only one paramater is passed) occupies.
-  get_col_of: (x, y) ->
+  get_col_of = (x, y) ->
     if y?
       @get_col x
     else
       @get_col @base_to_cart(x)[0]
 
   # get the array of values from particular col
-  get_row: (y) ->
+  get_row = (y) ->
     (@get_c(i,y) for i in [0..8])
 
   # returns the array of all values in the row which this cell occupies
   # (specified in cartesian coordinatse if two parameters are passed, or
   # specified in a base index if only one parameter is passed).
-  get_row_of: (x, y) ->
+  get_row_of = (x, y) ->
     if y?
       @get_row y
     else
@@ -261,7 +261,7 @@ class Grid
 
   # determines if an array of numbers has one of each of the numbers 1..9
   # without any repeats. will be called on rows, columns, and boxes.
-  valid_array: (xs) ->
+  valid_array = (xs) ->
     hits = []
 
     for x in xs
@@ -277,7 +277,7 @@ class Grid
   #   - each row is unique
   #   - each col is unique
   #   - each box is unique
-  is_valid: ->
+  is_valid = ->
     for i in [0..8]
       return false unless @valid_array @get_col i
       return false unless @valid_array @get_row i
@@ -288,7 +288,7 @@ class Grid
 ## Solver Class --------------------------------------------------------------
 
 class Solver
-  constructor: (@grid) ->
+  constructor = (@grid) ->
     # which values each cell can be; this info will ordinarily be stored if
     # there are only a couple possible values, or if the algorithm is
     # desperate (and then it only makes sense to store this if there are up to
@@ -312,12 +312,12 @@ class Solver
 
   # returns the values the cell must be if that info is currently stored;
   # otherwise returns null.
-  cell_must: (i) ->
+  cell_must = (i) ->
     if @cell_must_arrays[i] == 0 then null else @cell_must_arrays[i]
 
   # sets a list of values that a cell must be. returns whether the setting was
   # necessary, ie if an identical array was already present.
-  set_cell_must: (i, a) ->
+  set_cell_must = (i, a) ->
     if @cell_must(i)? and helpers.eq(@cell_must(i), a)
       retun false
     else
@@ -326,12 +326,12 @@ class Solver
 
   # returns the values the cell cant be if that info is currently stored;
   # otherwise returns null.
-  cell_cant: (i) ->
+  cell_cant = (i) ->
     if @cell_cant_arrays[i] == 0 then null else @cell_cant_arrays[i]
 
   # sets a list of values that a cell cant be. returns whether the setting was
   # necessary, ie if an identical array was already present.
-  set_cell_cant: (i, a) ->
+  set_cell_cant = (i, a) ->
     if @cell_cant(i)? and helpers.eq(@cell_cant(i), a)
       return false
     else
@@ -339,14 +339,14 @@ class Solver
       return true
 
   # determines if it is possible to put value v at index i of the grid.
-  cell_is_possible: (v, i) ->
+  cell_is_possible = (v, i) ->
     v not in @grid.get_row_of(i) and
     v not in @grid.get_col_of(i) and
     v not in @grid.get_box_of(i)
 
   # STRATEGIES ---------------------------------------------------------------
 
-  cell_by_cell_loop: (i) ->
+  cell_by_cell_loop = (i) ->
     can = []
 
     [x,y] = @grid.base_to_cart i
@@ -404,7 +404,7 @@ class Solver
     else
       immediately_iterate()
 
-  cell_by_cell: ->
+  cell_by_cell = ->
     log (if @desperate then "desperately " else "") + "performing Cell By Cell"
 
     @updated = false
@@ -413,7 +413,7 @@ class Solver
 
   # SOLVE LOOP ---------------------------------------------------------------
 
-  solve_loop : ->
+  solve_loop = ->
     @solve_iter += 1
     log "iteration #{@solve_iter}" + if @desperate then ", desperate" else ""
 
@@ -433,13 +433,13 @@ class Solver
       # this will set @updated, and call solve_loop recursively.
       @cell_by_cell()
 
-  solve_loop_done: ->
+  solve_loop_done = ->
     log if @grid.is_valid() then "Grid solved! :)" else "Grid not solved :("
 
     log "Must: " + @cell_must_arrays
     log "Cant: " + @cell_cant_arrays
 
-  solve: ->
+  solve = ->
     @solve_loop()
 
 
