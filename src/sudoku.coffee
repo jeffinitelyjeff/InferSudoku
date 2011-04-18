@@ -4,7 +4,7 @@ settings =
   # delay between strategies
   sdel: 100
   # number of times to run the solve loop before dying
-  max_solve_iter: 100
+  max_solve_iter: 10
 
 ## ---------------------------------------------------------------------------
 ## General Helpers -----------------------------------------------------------
@@ -12,9 +12,6 @@ settings =
 helpers =
 
  ## Basic helper functions.
-
-  init: (a, len, fn_value) ->
-    a[i] = fn_value() for i in a[1..len]
 
   eq: (xs, ys) ->
     return false if xs.length != ys.length
@@ -306,7 +303,8 @@ class Solver
     # cell either can or cannot be (again, depending on the value of the 'type'
     # field).
     @cell_restrictions = []
-    helpers.init(@cell_restrictions, 81, -> [])
+    make_restriction = -> [0,0,0,0,0,0,0,0,0,0]
+    @cell_restrictions = (make_restriction() for i in [0...81])
 
     @solve_iter = 0
 
@@ -315,12 +313,12 @@ class Solver
     # count the number of occurrences of each value.
     @occurrences = [0,0,0,0,0,0,0,0,0,0]
     for v in [1..9]
-      for i in [0..80]
+      for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
 
     # call the solver's set function for all the pre-filled in values, to create
     # the basic knowledge representation.
-    for i in [0..81]
+    for i in [0...81]
       v = @grid.get i
       if v > 0
         @record i,v
@@ -397,7 +395,10 @@ class Solver
     # get the indices of the cells in the same row, col, and box.
     row_idxs = (@grid.cart_to_base(x,j) for j in [0..8])
     col_idxs = (@grid.cart_to_base(j,y) for j in [0..8])
-    box_idxs = (@grid.box_to_base(b_x, b_y, j, k) for j in [0..2] for k in [0..2])
+    box_idxs = []
+    for j in [0..2]
+      for k in [0..2]
+        box_idxs.push @grid.box_to_base(b_x, b_y, j, k)
 
     # combine all the indices into one array.
     idxs = row_idxs.concat(col_idxs).concat(box_idxs)
@@ -426,17 +427,14 @@ class Solver
     # we should only be adding restrictions to cells which aren't set yet.
     throw "Error" if @grid.get(i) != 0
 
-    @cell_restrictions[i] == 1
-
-    [x0,y0,x1,y1] = @grid.base_to_box(i)
-    if x0==2 and y0==2 and x1==1 and y1==1
-      log @cell_restrictions i
+    @cell_restrictions[i][v] = 1
 
     if helpers.num_pos @cell_restrictions[i] == 8
       j = 1
       until @cell_restrictions[i][j] == 0
         j += 1
       # now i is the only non-restricted value, so we can fill it in
+      log "Setting (#{@grid.base_to_cart i}) to #{j} by adding restrictions"
       @set i, j
 
 
@@ -584,7 +582,10 @@ class Solver
 
     ps = @naive_possible_positions_in_box v, b
 
+    # fill in the value if there is only one possibility
     if ps.length == 1
+      log @cell_restrictions[ps[0]]
+      log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
       @set ps[0], v
 
     next_box = @GridScanBoxLoop.bind(@, vs, vi, bs, bi+1)
