@@ -98,16 +98,13 @@ domhelpers =
 
   color_adjacent: (x,y) ->
     fn1 = =>
-      log "bitches"
       $(@sel_box(x,y)).addClass("adj-box")
       $(@sel_col(x,y)).addClass("adj-col")
       $(@sel_row(x,y)).addClass("adj-row")
-      log "bitches"
     fn2 = =>
       $(@sel_box(x,y)).removeClass("adj-box")
       $(@sel_col(x,y)).removeClass("adj-col")
       $(@sel_row(x,y)).removeClass("adj-row")
-      log "bitches2"
     $(@sel(x,y)).hover(fn1, fn2)
 
   # a low-level function to get the value of the input HTML element at the
@@ -589,9 +586,9 @@ class Solver
 
     ps = @naive_possible_positions_in_box v, b
 
-    next_box = @GridScanBoxLoop.bind(@, vs, vi, bs, bi+1)
-    next_val = @GridScanValLoop.bind(@, vs, vi+1)
-    done = @solve_loop.bind(@)
+    next_box = ( => @GridScanBoxLoop(vs, vi, bs, bi+1) )
+    next_val = ( => @GridScanValLoop(vs, vi+1) )
+    done = ( => @solve_loop() )
 
     # if there are more boxes, go to the next box.
     if bi < bs.length - 1
