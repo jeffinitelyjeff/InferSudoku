@@ -22,6 +22,7 @@ helpers =
       return false if xs[i] != ys[i]
     return true
 
+  # returns the set which contains all elements of x which are not elements of y.
   set_subtract: (xs, ys) ->
     result = []
     for x in xs
@@ -299,7 +300,7 @@ class Solver
     # cell either can or cannot be (again, depending on the value of the 'type'
     # field).
     @cell_restrictions = []
-    helpers.init(@cell_restrictions, 81, -> {type: "none", vals: []})
+    helpers.init(@cell_restrictions, 81, -> [])
 
     @solve_iter = 0
 
@@ -318,9 +319,33 @@ class Solver
 
   # wrapper for @grid.set which will update the knowledge base if it needs to.
   set: (i, v) ->
+    # we should only be setting cells which don't already have values.
+    throw "Error" if @grid.get(i) != 0
+
     @grid.set i,v
 
-    # FIXME: update knowledge base, and test whether update should be done.
+    # FIXME: test whether this update should be done. should be some function of
+    # how far we are in the solve loop, and what strategies have been applied.
+    if true
+      x,y = @base_to_cart i
+      b_x, b_y, s_x, s_y = @base_to_box i
+
+      # get the indices of the cells in the same row, col, and box.
+      row_idxs = [(@cart_to_base(x,j) for j in [0..8])]
+      col_idxs = [(@cart_to_base(j,y) for j in [0..8])]
+      box_idxs = [(@box_to_base(b_x, b_y, j, k) for j in [0..2] for k in [0..2])]
+
+      # combine all the indices into one array.
+      idxs = row_idxs.concat(col_idxs).concat(box_idxs)
+
+      # filter the indices to just ones which do not have values set.
+      unset_idxs = []
+      for idx in idxs
+        unset_idxs.push(idx) if @grid.get(idx) == 0
+
+      # add the restriction to all the unset cells in the same row, col, and box.
+      for idx in unset_idxs
+        add_restriction idx, v
 
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
   set_c: (x,y,v) ->
@@ -330,19 +355,46 @@ class Solver
   set_b: (b_x, b_y, s_x, s_y) ->
     @set(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v)
 
-  # adds a restriction to the knowledge base mandating that the cell with base
-  # index i cannot be the value v. will either create a cant list, update a cant
-  # list, turn a cant list into a must list, update a must list, or set a value.
-  add_cant: (i, v) ->
-    r = @cell_restrictions[i]
+  # adds a restriction of value v to cell with base index i. if this restriction
+  # made it so a cell only has one possible value, then the value will be
+  # set. returns whether a value was set.
+  add_restriction: (i, v) ->
+    # we should only be adding restrictions to cells which aren't set yet.
+    throw "Error" if @grid.get(i) != 0
 
-    if r.type == "none"
-      r.type = "cant"
-      vals.push v
-    else if r.type == "cant"
-      # FIXME add to cant array or convert to a must array
-    else if r.type == "must"
-      # FIXME add to must array or set the value
+    @cell_restrictions[i] == 1
+
+    if helpers.num_pos @cell_restrictions == 8
+      j = 1
+      until @cell_restrictions[j] == 0
+        j += 1
+      # now i is the only non-restricted value, so we can fill it in
+      @set i, j
+
+  # gets a representation of the cell restriction for the cell with base index
+  # i. if the cell has a lot of restrictions, then returns a list of values
+  # which the cell must be; if the cell has only a few restrictions, then
+  # returns a list of values which the cell can't be. the returned object will
+  # have a "type" field specifying if it's returning the list of cells possible
+  # ("must"), the list of cells not possible ("cant"), or no information because
+  # no info has yet been storetd for the cell ("none"), and a "vals" array with
+  # the list of values either possible or impossle.
+  get_restrictions: (i) ->
+    r = @cell_restrictions[i]
+    n = helpers.num_pos r
+
+    if n == 0
+      return { type: "none" }
+    else if 1 <= n <= 4
+      cants = []
+      for j in [1..9]
+        cants.push(j) if r[j] == 1
+      return { type: "cant", vals: cants }
+    else # this will mean n >= 5
+      musts = []
+      for j in [1..9]
+        musts.push(j) if r[j] == 0
+      return { type: "must", vals: musts }
 
   # STRATEGIES ---------------------------------------------------------------
 
