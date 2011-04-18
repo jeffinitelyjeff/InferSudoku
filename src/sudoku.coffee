@@ -373,16 +373,21 @@ class Solver
       i = @cart_to_base x,y
       ps.push(i) unless v in @naive_impossible_values(i)
 
-  # wrapper for @grid.set which will update the knowledge base if it needs to.
-  set: (i, v) ->
+  # wrapper for @grid.set which will update the knowledge base. also optionally
+  # takes a callback and a delay and then calls the callback after delay.
+  set: (i, v, callback, delay) ->
     @grid.set i,v
 
     @occurrences[v] += 1
 
-    # FIXME: test whethre this update should be done. should be some function of
-    # how far we are in the solve loop, and what strategies have been applied.
     if true
       @record i,v
+
+    if callback?
+      if delay? or delay > 0
+        setTimeout(callback, delay)
+      else
+        callback()
 
   # updates the neighbors (cells in the same row/col/box) that the value v has
   # been "used up" by going in cell i. this probably shouldn't be called all the
@@ -408,12 +413,12 @@ class Solver
       @add_restriction(idx, v) if @grid.get(idx) == 0
 
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
-  set_c: (x,y,v) ->
-    @set(@cart_to_base(x,y), v)
+  set_c: (x,y,v, callback, delay) ->
+    @set(@cart_to_base(x,y), v, callback, delay)
 
   # wrapper for @grid.set_b which will update the knowldege base if it needs to.
-  set_b: (b_x, b_y, s_x, s_y) ->
-    @set(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v)
+  set_b: (b_x, b_y, s_x, s_y, callback, delay) ->
+    @set(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v, callback, delay)
 
   # adds a restriction of value v to cell with base index i. if this restriction
   # made it so a cell only has one possible value, then the value will be
@@ -424,14 +429,17 @@ class Solver
 
     @cell_restrictions[i][v] = 1
 
-    if helpers.num_pos(@cell_restrictions[i]) == 8
-      j = 1
-      until @cell_restrictions[i][j] == 0
-        j += 1
-      # now i is the only non-restricted value, so we can fill it in
-      log "Setting (#{@grid.base_to_cart i}) to #{j} by adding restrictions"
-      @set i, j
-      return true
+    # FIXME: I don't think we should blindly be setting a value whenever a
+    # restriction makes it obvious to the computer, becasue this may very well
+    # not be obvious to a human solving the sudoku.
+    # if helpers.num_pos(@cell_restrictions[i]) == 8
+    #   j = 1
+    #   until @cell_restrictions[i][j] == 0
+    #     j += 1
+    #   # now i is the only non-restricted value, so we can fill it in
+    #   log "Setting (#{@grid.base_to_cart i}) to #{j} by adding restrictions"
+    #   @set i, j
+    #   return true
 
 
   # gets a representation of the cell restriction for the cell with base index
@@ -578,24 +586,34 @@ class Solver
 
     ps = @naive_possible_positions_in_box v, b
 
-    # fill in the value if there is only one possibility
-    if ps.length == 1
-      log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
-      @set ps[0], v
-
     next_box = @GridScanBoxLoop.bind(@, vs, vi, bs, bi+1)
     next_val = @GridScanValLoop.bind(@, vs, vi+1)
     done = @solve_loop.bind(@)
 
-    # go to the next box if there are more boxes.
+    # if there are more boxes, go to the next box.
     if bi < bs.length - 1
-      setTimeout(next_box, settings.FILL_DELAY)
-    # go to the next value if there are more values and no more boxes.
+      callback = next_box
+      delay = settings.FILL_DELAY
+    # if there are more values but no more boxes, go to the next value.
     else if vi < vs.length - 1 and bi == bs.length - 1
-      setTimeout(next_val, settings.FILL_DELAY)
-    # finish the strategy if there are no more values or boxes.
+      callback = next_val
+      delay = settings.FILL_DELAY
+    # if there are no more values and no more boxes, go to the next strat.
     else
-      setTimeout(done, settings.STRAT_DELAY)
+      callback = done
+      delay = settings.STRAT_DELAY
+
+    # if there is only one possible location, then fill it in and wait the
+    # appropriate time to call the next method.
+    if ps.length == 1
+      log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
+      @set ps[0], v
+      setTimeout(callback, delay)
+    else
+      # if we haven't filled in anything, then call the callback immediately,
+      # unless the callback is to go to the next strategy, in which case we
+      # should still delay.
+      if callback == done then setTimeout(callback, delay) else callback()
 
   should_gridscan: ->
     # FIXME: GridScan should be run more in the beginning, and less in the
