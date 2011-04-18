@@ -1,8 +1,8 @@
 settings =
   # delay after filling in cells
-  fdel: 50
+  FILL_DELAY: 50
   # delay between strategies
-  sdel: 100
+  STRAT_DELAY: 100
   # number of times to run the solve loop before dying
   max_solve_iter: 10
 
@@ -403,14 +403,9 @@ class Solver
     # combine all the indices into one array.
     idxs = row_idxs.concat(col_idxs).concat(box_idxs)
 
-    # filter the indices to just ones which do not have values set.
-    unset_idxs = []
+    # add restrictions to all unset cells in the same row, col, and box.
     for idx in idxs
-      unset_idxs.push(idx) if @grid.get(idx) == 0
-
-    # add the restriction to all the unset cells in the same row, col, and box.
-    for idx in unset_idxs
-      @add_restriction idx, v
+      @add_restriction(idx, v) if @grid.get(idx) == 0
 
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
   set_c: (x,y,v) ->
@@ -429,13 +424,14 @@ class Solver
 
     @cell_restrictions[i][v] = 1
 
-    if helpers.num_pos @cell_restrictions[i] == 8
+    if helpers.num_pos(@cell_restrictions[i]) == 8
       j = 1
       until @cell_restrictions[i][j] == 0
         j += 1
       # now i is the only non-restricted value, so we can fill it in
       log "Setting (#{@grid.base_to_cart i}) to #{j} by adding restrictions"
       @set i, j
+      return true
 
 
   # gets a representation of the cell restriction for the cell with base index
@@ -484,7 +480,7 @@ class Solver
     next_step = @cell_by_cell_loop.bind(@, i+1)
     done = @solve_loop.bind(@)
     immediately_iterate = ->
-      if i == 80 then setTimeout(done, settings.sdel) else next_step()
+      if i == 80 then setTimeout(done, settings.STRAT_DELAY) else next_step()
 
     # only proceed if the cell is unknown, and if desperate or if there is
     # enough info to make this strategy seem reasonable.
@@ -506,9 +502,9 @@ class Solver
           @updated = true
 
           if i == 80
-            setTimeout(done, settings.sdel)
+            setTimeout(done, settings.STRAT_DELAY)
           else
-            setTimeout(next_step, settings.fdel)
+            setTimeout(next_step, settings.FILL_DELAY)
 
         when 2,3
           # store the cell-must-be-one-of-these-values info if there are 2 or
@@ -584,7 +580,6 @@ class Solver
 
     # fill in the value if there is only one possibility
     if ps.length == 1
-      log @cell_restrictions[ps[0]]
       log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
       @set ps[0], v
 
@@ -594,13 +589,13 @@ class Solver
 
     # go to the next box if there are more boxes.
     if bi < bs.length - 1
-      setTimeout(next_box, settings.fdel)
+      setTimeout(next_box, settings.FILL_DELAY)
     # go to the next value if there are more values and no more boxes.
     else if vi < vs.length - 1 and bi == bs.length - 1
-      setTimeout(next_val, settings.fdel)
+      setTimeout(next_val, settings.FILL_DELAY)
     # finish the strategy if there are no more values or boxes.
     else
-      setTimeout(done, settings.sdel)
+      setTimeout(done, settings.STRAT_DELAY)
 
   should_gridscan: ->
     # FIXME: GridScan should be run more in the beginning, and less in the
@@ -698,7 +693,7 @@ evil = '''
 '''
 
 $(document).ready ->
-  $("#stdin").val(hard)
+  $("#stdin").val(easy)
 
   for j in [0..8]
     for i in [0..8]
