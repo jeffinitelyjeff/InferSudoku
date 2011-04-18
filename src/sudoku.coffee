@@ -304,7 +304,14 @@ class Solver
 
     @solve_iter = 0
 
-    @last_strategy = "none"
+    @prev_strategies = []
+
+    # count the number of occurrences of each value.
+    @occurrences = []
+    for v in [1..9]
+      for i in [0..80]
+        @occurrences[v] += 1 if @grid.get(i) == v
+
 
   # get an array of all naively impossible values to fill into the cell at base
   # index i in the grid. the impossible values are simply the values filled in
@@ -317,12 +324,49 @@ class Solver
       concat(@grid.get_col_of(i)).
         concat(@grid.get_box_of(i))
 
+  # gets a list of positions in a specified box where v can be filled in based
+  # on naive_impossible_values. the box is specified either as (x,y) in
+  # [0..2]x[0..2] or with a single index in [0..8]. positions are returned as
+  # base indices of the grid.
+  naive_possible_positions_in_box: (v, x, y) ->
+    unless y?
+      y = Math.floor x / 3
+      x = Math.floor x % 3
+
+    ps = []
+    for b in [0..2]
+      for a in [0..2]
+        i = @box_to_base x,y,a,b
+        ps.push(i) unless v in @naive_impossible_values(i)
+
+    return ps
+
+  # gets a list of positions in a specified row where v can be filled in based
+  # on naive_impossible_values. the row is specified as a y-coordinate of
+  # cartesian coordinates, and positions are returned as base indices of the grid.
+  naive_possible_positions_in_row: (v, y) ->
+    ps = []
+    for x in [0..8]
+      i = @cart_to_base x,y
+      ps.push(i) unless v in @naive_impossible_values(i)
+
+  # gets a list of positions in a specified col where v can be filled in based
+  # on naive_impossible_values. the row is specified as an x-coordinate of
+  # cartesian coordinates, and positions are returned as base indices of the grid.
+  naive_possible_positions_in_col: (v, x) ->
+    ps = []
+    for y in [0..8]
+      i = @cart_to_base x,y
+      ps.push(i) unless v in @naive_impossible_values(i)
+
   # wrapper for @grid.set which will update the knowledge base if it needs to.
   set: (i, v) ->
     # we should only be setting cells which don't already have values.
     throw "Error" if @grid.get(i) != 0
 
     @grid.set i,v
+
+    @occurrences[v] += 1
 
     # FIXME: test whether this update should be done. should be some function of
     # how far we are in the solve loop, and what strategies have been applied.
@@ -395,6 +439,16 @@ class Solver
       for j in [1..9]
         musts.push(j) if r[j] == 0
       return { type: "must", vals: musts }
+
+  # returns an array of values in order of the number of their occurrences, with
+  # in order of most prevalent to least prevalent.
+  vals_by_occurrences: ->
+    ordered = []
+    for o in [9..1]
+      for v in [1..9]
+        ordered.push(v) if @occurrences[v] == o
+    return ordered
+
 
   # STRATEGIES ---------------------------------------------------------------
 
@@ -470,6 +524,45 @@ class Solver
 
   # GridScan -------------------------------------------------------------------
 
+  GridScan: ->
+    vals = @vals_by_occurrences()
+
+    GridScanValLoop(vals, 0)
+
+  GridScanValLoop: (vs, vi) ->
+    v = vs[vi]
+
+    boxes = []
+    # get the boxes which don't contain v, which are the only ones we're
+    # considering for the strategy
+    for b in [0..8]
+      boxes.push(b) if v not in @grid.get_box(b)
+
+    @GridScanBoxLoop(vs, vi, boxes, 0)
+
+  GridScanBoxLoop: (vs, vi, bs, bi) ->
+    v = vs[vi]
+    b = bs[bi]
+
+    ps = naive_possible_positions_in_box b
+
+    if ps.length == 1
+      @set ps[0], v
+
+    next_box = @GridScanBoxLoop.bind(@, vs, vi, bs, bi+1)
+    next_val = @GridScanValLoop.bind(@, vs, vi+1)
+    done = @solve_loop.bind(@)
+
+    # go to the next box if there are more boxes.
+    if bi < bs.length - 1
+      setTimeout(next_box, settings.fdel)
+    # go to the next value if there are more values and no more boxes.
+    else if vi < vs.length - 1 and bi == bs.length - 1
+      setTimeout(next_val, settings.fdel)
+    # finish the strategy if there are no more values or boxes.
+    else
+      setTimeout(done, settings.sdel)
+
   should_gridscan: ->
     # FIXME: GridScan should be run more in the beginning, and less in the
     # end. Need a good heuristic to represent the "beginning" and the "end".
@@ -478,7 +571,9 @@ class Solver
     # tried, will never run gridscan again. this clearly isn't ideal, I feel
     # there are times I might use gridscan in real life even after doing somes
     # other strategies.
-    @last_strategy == "none" or @last_strategy == "GridScan"
+    @prev_strategies.length == 0 or (@prev_strategies.length == 1 and
+                                     @prev_strategies[0] == "GridScan")
+
 
   # SOLVE LOOP ---------------------------------------------------------------
 
