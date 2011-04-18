@@ -629,6 +629,79 @@ class Solver
 
   # SOLVE LOOP ---------------------------------------------------------------
 
+  # Finds and fills in any cells which are in a row, col, or box which is only
+  # missing one value (and thus the missing value is obvious).
+  fill_obvious_cells: (callback) ->
+    for y in [0..8]
+      vals = @grid.get_row y
+
+      if helpers.num_pos(vals) == 8
+        # get the one missing value.
+        v = 1
+        v += 1 until v not in vals
+
+        # get the position missing it.
+        x = 0
+        x += 1 until @grid.get_c(x,y) == 0
+
+        log "Filling in #{v} at (#{[x,y]}) becaause it's obvious"
+        @set_c x,y,v
+
+        # continue trying to fill obvious cells.
+        return setTimeout(@fill_obvious_cells, settings.FILL_DELAY)
+
+    for x in [0..8]
+      vals = @grid.get_col x
+
+      if helpers.num_pos(vals) == 8
+        # get the one missing value.
+        v = 1
+        v += 1 until v not in vals
+
+        # get the position missing it.
+        y = 0
+        y += 1 until @grid.get_c(x,y) == 0
+
+        log "Filling in #{v} at (#{[x,y]}) because it's obvious"
+        @set x,y,v
+
+        # continue trying to fill obvious cells.
+        return setTimeout(@fill_obvious_cells, settings.FILL_DELAY)
+
+    for b in [0..8]
+      vals = @grid.get_box b
+
+      if helpers.num_pos(vals) == 8
+        # get the one missing value
+        v = 1
+        v += 1 until v not in vals
+
+        box_idxs = []
+        for j in [0..2]
+          for k in [0..2]
+            box_idxs.push @grid.box_to_base(b%3, b/3, k, j)
+
+        # get the position missing it.
+        i = 0
+        i += 1 until @grid.get(box_idxs[i]) == 0
+
+        log "Filling in #{v} at (#{@grid.base_to_cart i}) because it's obvious"
+        @set i, v
+
+        # continue trying to fill obvious cells.
+        return setTimeout(@fill_obvious_cells, settings.FILL_DELAY)
+
+    # if we didn't find any obvious cells, then call the callback
+    return callback()
+
+
+
+
+
+
+
+
+
   choose_strategy: ->
     if @should_gridscan()
       return @GridScan()
@@ -660,9 +733,9 @@ class Solver
     if done
       @solve_loop_done()
     else
-      # this will choose and call a strategy, which will call solve_loop
-      # recursively.
-      @choose_strategy()
+      # fill obvious cells and then choose a strategy once complete
+      @fill_obvious_cells(( => @choose_strategy()))
+
 
   solve_loop_done: ->
     log if @grid.is_valid() then "Grid solved! :)" else "Grid not solved :("
