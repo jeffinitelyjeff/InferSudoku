@@ -97,14 +97,17 @@ domhelpers =
     return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
 
   color_adjacent: (x,y) ->
-    fn1 = ->
-      $(@sel_box(x,y)).addClass("adjacent2")
-      $(@sel_col(x,y)).addClass("adjacent")
-      $(@sel_row(x,y)).addClass("adjacent")
-    fn2 = ->
-      $(@sel_box(x,y)).removeClass("adjacent2")
-      $(@sel_col(x,y)).removeClass("adjacent")
-      $(@sel_row(x,y)).removeClass("adjacent")
+    fn1 = =>
+      log "bitches"
+      $(@sel_box(x,y)).addClass("adj-box")
+      $(@sel_col(x,y)).addClass("adj-col")
+      $(@sel_row(x,y)).addClass("adj-row")
+      log "bitches"
+    fn2 = =>
+      $(@sel_box(x,y)).removeClass("adj-box")
+      $(@sel_col(x,y)).removeClass("adj-col")
+      $(@sel_row(x,y)).removeClass("adj-row")
+      log "bitches2"
     $(@sel(x,y)).hover(fn1, fn2)
 
   # a low-level function to get the value of the input HTML element at the
