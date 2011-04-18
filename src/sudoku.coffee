@@ -129,8 +129,6 @@ log = (s) ->
   t.scrollTop(9999999)
   return s
 
-log 'init webapp'
-
 
 
 
@@ -414,11 +412,11 @@ class Solver
 
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
   set_c: (x,y,v, callback, delay) ->
-    @set(@cart_to_base(x,y), v, callback, delay)
+    @set(@grid.cart_to_base(x,y), v, callback, delay)
 
   # wrapper for @grid.set_b which will update the knowldege base if it needs to.
   set_b: (b_x, b_y, s_x, s_y, callback, delay) ->
-    @set(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v, callback, delay)
+    @set(@grid.cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v, callback, delay)
 
   # adds a restriction of value v to cell with base index i. if this restriction
   # made it so a cell only has one possible value, then the value will be
@@ -632,6 +630,8 @@ class Solver
   # Finds and fills in any cells which are in a row, col, or box which is only
   # missing one value (and thus the missing value is obvious).
   fill_obvious_cells: (callback) ->
+    cont = ( => @fill_obvious_cells(callback))
+
     for y in [0..8]
       vals = @grid.get_row y
 
@@ -648,7 +648,7 @@ class Solver
         @set_c x,y,v
 
         # continue trying to fill obvious cells.
-        return setTimeout(@fill_obvious_cells, settings.FILL_DELAY)
+        return setTimeout(cont, settings.FILL_DELAY)
 
     for x in [0..8]
       vals = @grid.get_col x
@@ -663,10 +663,10 @@ class Solver
         y += 1 until @grid.get_c(x,y) == 0
 
         log "Filling in #{v} at (#{[x,y]}) because it's obvious"
-        @set x,y,v
+        @set_c x,y,v
 
         # continue trying to fill obvious cells.
-        return setTimeout(@fill_obvious_cells, settings.FILL_DELAY)
+        return setTimeout(cont, settings.FILL_DELAY)
 
     for b in [0..8]
       vals = @grid.get_box b
@@ -689,7 +689,7 @@ class Solver
         @set i, v
 
         # continue trying to fill obvious cells.
-        return setTimeout(@fill_obvious_cells, settings.FILL_DELAY)
+        return setTimeout(cont, settings.FILL_DELAY)
 
     # if we didn't find any obvious cells, then call the callback
     return callback()
@@ -784,6 +784,8 @@ evil = '''
 '''
 
 $(document).ready ->
+  log 'init webapp'
+
   $("#stdin").val(easy)
 
   for j in [0..8]
