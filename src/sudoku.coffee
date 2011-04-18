@@ -107,6 +107,11 @@ domhelpers =
       $(@sel_row(x,y)).removeClass("adj-row")
     $(@sel(x,y)).hover(fn1, fn2)
 
+  display_pos: (x,y) ->
+    fn = ->
+      $("#pos-label").html("(#{x}, #{y})")
+    $(@sel(x,y)).hover(fn)
+
   # a low-level function to get the value of the input HTML element at the
   # specified position in the Sudoku grid.
   get_input_val: (x, y) ->
@@ -644,7 +649,7 @@ class Solver
         x = 0
         x += 1 until @grid.get_c(x,y) == 0
 
-        log "Filling in #{v} at (#{[x,y]}) becaause it's obvious"
+        log "Setting (#{x},#{y}) to #{v} because it's obvious"
         @set_c x,y,v
 
         # continue trying to fill obvious cells.
@@ -662,7 +667,7 @@ class Solver
         y = 0
         y += 1 until @grid.get_c(x,y) == 0
 
-        log "Filling in #{v} at (#{[x,y]}) because it's obvious"
+        log "Setting (#{x},#{y}) to #{v} because it's obvious"
         @set_c x,y,v
 
         # continue trying to fill obvious cells.
@@ -676,6 +681,7 @@ class Solver
         v = 1
         v += 1 until v not in vals
 
+        # get the list of indices in the box.
         box_idxs = []
         for j in [0..2]
           for k in [0..2]
@@ -685,8 +691,8 @@ class Solver
         i = 0
         i += 1 until @grid.get(box_idxs[i]) == 0
 
-        log "Filling in #{v} at (#{@grid.base_to_cart i}) because it's obvious"
-        @set i, v
+        log "Setting (#{@grid.base_to_cart(box_idxs[i])}) to #{v} because it's obvious"
+        @set box_idxs[i], v
 
         # continue trying to fill obvious cells.
         return setTimeout(cont, settings.FILL_DELAY)
@@ -740,9 +746,6 @@ class Solver
   solve_loop_done: ->
     log if @grid.is_valid() then "Grid solved! :)" else "Grid not solved :("
 
-    log "Must: " + @cell_must_arrays
-    log "Cant: " + @cell_cant_arrays
-
   solve: ->
     @solve_loop()
 
@@ -788,9 +791,12 @@ $(document).ready ->
 
   $("#stdin").val(easy)
 
+  $("#puzzle-select").change( -> $("#stdin").val(eval($("#puzzle-select").val())))
+
   for j in [0..8]
     for i in [0..8]
       domhelpers.color_adjacent(i,j)
+      domhelpers.display_pos(i,j)
 
 
   inject = ->

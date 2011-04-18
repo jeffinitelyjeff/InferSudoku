@@ -8,6 +8,8 @@
     <script type="text/javascript" src="sudoku.js"></script>
   </head>
   <body>
+    <pre id="pos-label">( X , X )</pre>
+    
     <table id="grid">
       <tr class="gr0">
         <td class="gc0">
@@ -189,6 +191,11 @@
     <input id="solve-b" type="submit" value="Solve!" />
 
     <div id="input-container">
+      <select id="puzzle-select" name="puzzle-select">
+        <option>easy</option>
+        <option>hard</option>
+        <option>evil</option>
+      </select><br />
       <textarea id="stdin"></textarea> <br />
       <input id="input-b" type="submit" value="Input" />
     </div>
