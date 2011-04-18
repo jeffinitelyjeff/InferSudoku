@@ -175,6 +175,12 @@ class Grid
     y = Math.floor i / 9
     return [x,y]
 
+  box_to_base: (b_x, b_y, s_x, s_y) ->
+    @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
+
+  base_to_box: (i) ->
+    helpers.cart_to_box(@base_to_cart i)
+
   # access an element using base indices.
   get: (i) ->
     @base_array[i]
@@ -307,10 +313,18 @@ class Solver
     @prev_strategies = []
 
     # count the number of occurrences of each value.
-    @occurrences = []
+    @occurrences = [0,0,0,0,0,0,0,0,0,0]
     for v in [1..9]
       for i in [0..80]
         @occurrences[v] += 1 if @grid.get(i) == v
+
+    # call the solver's set function for all the pre-filled in values, to create
+    # the basic knowledge representation.
+    for i in [0..81]
+      v = @grid.get i
+      if v > 0
+        @record i,v
+
 
 
   # get an array of all naively impossible values to fill into the cell at base
@@ -318,7 +332,9 @@ class Solver
   # to cells that share a row, col, or box with this cell. will return -1 if the
   # cell already has a value.
   naive_impossible_values: (i) ->
-    return -1 if @grid.get(i) > 0
+    v = @grid.get i
+    if v > 0
+      return helpers.set_subtract([1..9], [v])
 
     @grid.get_row_of(i).
       concat(@grid.get_col_of(i)).
@@ -336,7 +352,7 @@ class Solver
     ps = []
     for b in [0..2]
       for a in [0..2]
-        i = @box_to_base x,y,a,b
+        i = @grid.box_to_base x,y,a,b
         ps.push(i) unless v in @naive_impossible_values(i)
 
     return ps
@@ -361,35 +377,39 @@ class Solver
 
   # wrapper for @grid.set which will update the knowledge base if it needs to.
   set: (i, v) ->
-    # we should only be setting cells which don't already have values.
-    throw "Error" if @grid.get(i) != 0
-
     @grid.set i,v
 
     @occurrences[v] += 1
 
-    # FIXME: test whether this update should be done. should be some function of
+    # FIXME: test whethre this update should be done. should be some function of
     # how far we are in the solve loop, and what strategies have been applied.
     if true
-      x,y = @base_to_cart i
-      b_x, b_y, s_x, s_y = @base_to_box i
+      @record i,v
 
-      # get the indices of the cells in the same row, col, and box.
-      row_idxs = [(@cart_to_base(x,j) for j in [0..8])]
-      col_idxs = [(@cart_to_base(j,y) for j in [0..8])]
-      box_idxs = [(@box_to_base(b_x, b_y, j, k) for j in [0..2] for k in [0..2])]
+  # updates the neighbors (cells in the same row/col/box) that the value v has
+  # been "used up" by going in cell i. this probably shouldn't be called all the
+  # time, since calling it all the time dosen't really reflect how a human would
+  # think of things.
+  record: (i,v) ->
+    [x,y] = @grid.base_to_cart i
+    [b_x, b_y, s_x, s_y] = @grid.base_to_box i
 
-      # combine all the indices into one array.
-      idxs = row_idxs.concat(col_idxs).concat(box_idxs)
+    # get the indices of the cells in the same row, col, and box.
+    row_idxs = (@grid.cart_to_base(x,j) for j in [0..8])
+    col_idxs = (@grid.cart_to_base(j,y) for j in [0..8])
+    box_idxs = (@grid.box_to_base(b_x, b_y, j, k) for j in [0..2] for k in [0..2])
 
-      # filter the indices to just ones which do not have values set.
-      unset_idxs = []
-      for idx in idxs
-        unset_idxs.push(idx) if @grid.get(idx) == 0
+    # combine all the indices into one array.
+    idxs = row_idxs.concat(col_idxs).concat(box_idxs)
 
-      # add the restriction to all the unset cells in the same row, col, and box.
-      for idx in unset_idxs
-        add_restriction idx, v
+    # filter the indices to just ones which do not have values set.
+    unset_idxs = []
+    for idx in idxs
+      unset_idxs.push(idx) if @grid.get(idx) == 0
+
+    # add the restriction to all the unset cells in the same row, col, and box.
+    for idx in unset_idxs
+      @add_restriction idx, v
 
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
   set_c: (x,y,v) ->
@@ -408,12 +428,17 @@ class Solver
 
     @cell_restrictions[i] == 1
 
-    if helpers.num_pos @cell_restrictions == 8
+    [x0,y0,x1,y1] = @grid.base_to_box(i)
+    if x0==2 and y0==2 and x1==1 and y1==1
+      log @cell_restrictions i
+
+    if helpers.num_pos @cell_restrictions[i] == 8
       j = 1
-      until @cell_restrictions[j] == 0
+      until @cell_restrictions[i][j] == 0
         j += 1
       # now i is the only non-restricted value, so we can fill it in
       @set i, j
+
 
   # gets a representation of the cell restriction for the cell with base index
   # i. if the cell has a lot of restrictions, then returns a list of values
@@ -443,11 +468,11 @@ class Solver
   # returns an array of values in order of the number of their occurrences, with
   # in order of most prevalent to least prevalent.
   vals_by_occurrences: ->
-    ordered = []
+    ord = []
     for o in [9..1]
       for v in [1..9]
-        ordered.push(v) if @occurrences[v] == o
-    return ordered
+        ord.push(v) if @occurrences[v] == o
+    return ord
 
 
   # STRATEGIES ---------------------------------------------------------------
@@ -527,7 +552,7 @@ class Solver
   GridScan: ->
     vals = @vals_by_occurrences()
 
-    GridScanValLoop(vals, 0)
+    @GridScanValLoop(vals, 0)
 
   GridScanValLoop: (vs, vi) ->
     v = vs[vi]
@@ -538,13 +563,26 @@ class Solver
     for b in [0..8]
       boxes.push(b) if v not in @grid.get_box(b)
 
-    @GridScanBoxLoop(vs, vi, boxes, 0)
+
+    if boxes.length == 0
+      # if there are no possible boxes and there are more values, move to the
+      # next value.
+      if vi < vs.length - 1
+        @GridScanValLoop(vs, vi+1)
+      # if there are no possible boxes and there are no more values, then stop
+      # iterating.
+      else
+        @solve_loop()
+    # if there are possible boxes, then start iterating on them.
+    else
+      @GridScanBoxLoop(vs, vi, boxes, 0)
+
 
   GridScanBoxLoop: (vs, vi, bs, bi) ->
     v = vs[vi]
     b = bs[bi]
 
-    ps = naive_possible_positions_in_box b
+    ps = @naive_possible_positions_in_box v, b
 
     if ps.length == 1
       @set ps[0], v
@@ -659,7 +697,7 @@ evil = '''
 '''
 
 $(document).ready ->
-  $("#stdin").val(evil)
+  $("#stdin").val(hard)
 
   for j in [0..8]
     for i in [0..8]
@@ -700,4 +738,4 @@ $(document).ready ->
     s = new Solver(g)
 
     log "Solving..."
-    log s.solve()
+    s.solve()
