@@ -329,15 +329,6 @@ class Solver
       for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
 
-    # call the solver's set function for all the pre-filled in values, to create
-    # the basic knowledge representation.
-    for i in [0...81]
-      v = @grid.get i
-      if v > 0
-        @record i,v
-
-
-
   # get an array of all naively impossible values to fill into the cell at base
   # index i in the grid. the impossible values are simply the values filled in
   # to cells that share a row, col, or box with this cell. will return -1 if the
@@ -386,52 +377,127 @@ class Solver
       i = @cart_to_base x,y
       ps.push(i) unless v in @naive_impossible_values(i)
 
-  # wrapper for @grid.set which will update the knowledge base. also optionally
-  # takes a callback and a delay and then calls the callback after delay.
-  set: (i, v, callback, delay) ->
+  # wrapper for @grid.set which will update the knowledge base.
+  set: (i, v, callback) ->
     @grid.set i,v
 
     @occurrences[v] += 1
 
-    if true
-      @record i,v
-
-    if callback?
-      if delay? or delay > 0
-        setTimeout(callback, delay)
-      else
-        callback()
-
-  # updates the neighbors (cells in the same row/col/box) that the value v has
-  # been "used up" by going in cell i. this probably shouldn't be called all the
-  # time, since calling it all the time dosen't really reflect how a human would
-  # think of things.
-  record: (i,v) ->
     [x,y] = @grid.base_to_cart i
-    [b_x, b_y, s_x, s_y] = @grid.base_to_box i
+    [b_x,b_y,s_x,s_y] = @grid.base_to_box i
 
-    # get the indices of the cells in the same row, col, and box.
-    row_idxs = (@grid.cart_to_base(x,j) for j in [0..8])
-    col_idxs = (@grid.cart_to_base(j,y) for j in [0..8])
-    box_idxs = []
-    for j in [0..2]
-      for k in [0..2]
-        box_idxs.push @grid.box_to_base(b_x, b_y, j, k)
+    fun =  =>
+      @fill_obvious_row(y, =>
+      @fill_obvious_col(x, =>
+      @fill_obvious_box(b_x, b_y, callback) ) )
 
-    # combine all the indices into one array.
-    idxs = row_idxs.concat(col_idxs).concat(box_idxs)
+    setTimeout(fun, settings.FILL_DELAY)
 
-    # add restrictions to all unset cells in the same row, col, and box.
-    for idx in idxs
-      @add_restriction(idx, v) if @grid.get(idx) == 0
+  # if the specified row only has one value missing, then will fill in that value.
+  fill_obvious_row: (y, callback) ->
+    vals = @grid.get_row y
+
+    if helpers.num_pos(vals) == 8
+      # get the one missing value
+      v = 1
+      v += 1 until v not in vals
+
+      # get the position missing it.
+      x = 0
+      x += 1 until @grid.get_c(x,y) == 0
+
+      log "Setting (#{x},#{y}) to #{v} because it's row-obvious"
+      @set_c(x,y,v, callback)
+    else
+      callback()
+
+  # if the specified col only has one value missing, then will fill in that
+  # value.
+  fill_obvious_col: (x, callback) ->
+    vals = @grid.get_col x
+
+    if helpers.num_pos(vals) == 8
+      # get the one missing value
+      v = 1
+      v += 1 until v not in vals
+
+      # get the position missing it.
+      y = 0
+      y += 1 until @grid.get_c(x,y) == 0
+
+      log "Setting (#{x},#{y}) to #{v} becasue it's col-obvious"
+      @set_c(x,y,v, callback)
+    else
+      callback()
+
+  # if the specified box only has one value missing, then will fill in that
+  # value.
+  fill_obvious_box: (b_x, b_y, callback) ->
+    if b_y?
+      b = 3*b_y + b_x
+    else
+      b = b_x
+      b_x = Math.floor(b_x % 3)
+      b_y = Math.floor(b_y / 3)
+
+    vals = @grid.get_box b
+
+    if helpers.num_pos(vals) == 8
+      # get the one missing value
+      v = 1
+      v += 1 until v not in vals
+
+      # get the list of indices in the box.
+      box_idxs = []
+      for j in [0..2]
+        for k in [0..2]
+          box_idxs.push @grid.box_to_base(b_x, b_y, k, j)
+
+      # get the position missing it.
+      i = 0
+      i += 1 until @grid.get(box_idxs[i]) == 0
+
+      log "Setting (#{@grid.base_to_cart(box_idxs[i])}) to #{v} because it's" +
+      " box-obvious"
+      @set(box_idxs[i], v, callback)
+    else
+      callback()
+
+
+
+
+
+
+  # # updates the neighbors (cells in the same row/col/box) that the value v has
+  # # been "used up" by going in cell i. this probably shouldn't be called all the
+  # # time, since calling it all the time dosen't really reflect how a human would
+  # # think of things.
+  # record: (i,v) ->
+  #   [x,y] = @grid.base_to_cart i
+  #   [b_x, b_y, s_x, s_y] = @grid.base_to_box i
+  #
+  #   # get the indices of the cells in the same row, col, and box.
+  #   row_idxs = (@grid.cart_to_base(x,j) for j in [0..8])
+  #   col_idxs = (@grid.cart_to_base(j,y) for j in [0..8])
+  #   box_idxs = []
+  #   for j in [0..2]
+  #     for k in [0..2]
+  #      box_idxs.push @grid.box_to_base(b_x, b_y, j, k)
+  #
+  #   # combine all the indices into one array.
+  #   idxs = row_idxs.concat(col_idxs).concat(box_idxs)
+  #
+  #   # add restrictions to all unset cells in the same row, col, and box.
+  #   for idx in idxs
+  #     @add_restriction(idx, v) if @grid.get(idx) == 0
 
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
-  set_c: (x,y,v, callback, delay) ->
-    @set(@grid.cart_to_base(x,y), v, callback, delay)
+  set_c: (x,y,v, callback) ->
+    @set(@grid.cart_to_base(x,y), v, callback)
 
   # wrapper for @grid.set_b which will update the knowldege base if it needs to.
-  set_b: (b_x, b_y, s_x, s_y, callback, delay) ->
-    @set(@grid.cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v, callback, delay)
+  set_b: (b_x, b_y, s_x, s_y, callback) ->
+    @set(@grid.cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v, callback)
 
   # adds a restriction of value v to cell with base index i. if this restriction
   # made it so a cell only has one possible value, then the value will be
@@ -547,25 +613,27 @@ class Solver
     next_val = ( => @GridScanValLoop(vs, vi+1) )
     next_strat = ( => @solve_loop() )
 
-    filled = false
+    if bi < bs.length - 1
+      # go to the next box if there are more boxes.
+      callback = next_box
+      delay = 0
+    else if vi < vs.length - 1
+      # go to the next value if there are no more boxes, but more values.
+      callback = next_val
+      delay = 0
+    else
+      # go to the next strategy if there are no more values or boxes.
+      callback = next_strat
+      delay = settings.STRAT_DELAY
 
     if ps.length == 1
       log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
-      @set ps[0], v
-      filled = true
-      @updated = true
-
-    delay = if filled then settings.FILL_DELAY else 0
-
-    if bi < bs.length - 1
-      # go to the next box if there are more boxes.
-      setTimeout(next_box, delay)
-    else if vi < vs.length - 1
-      # go to the next value if there are no more boxes, but more values.
-      setTimeout(next_val, delay)
+      @set(ps[0], v, =>
+        @updated = true
+        delay += settings.FILL_DELAY
+        setTimeout(callback, delay))
     else
-      # go to the next strategy if there are no more values or boxes.
-      setTimeout(next_strat, settings.STRAT_DELAY)
+      setTimeout(callback, delay)
 
   should_gridscan: ->
     # FIXME: GridScan should be run more in the beginning, and less in the
@@ -627,25 +695,27 @@ class Solver
     next_box = ( => @ThinkInsideBoxLoop(bs, bi+1) )
     next_strat = ( => @solve_loop() )
 
-    filled = false
+    if vi < vs.length - 1
+      # go to the next value if there are more values.
+      callback = next_val
+      delay = 0
+    else if bi < bs.length - 1
+      # go to the next box if there are no more values, but more boxes.
+      callback = next_box
+      delay = 0
+    else
+      # go to the next strategy if there are no more boxes or values.
+      callback = next_strat
+      delay = settings.STRAT_DELAY
 
     if ps.length == 1
       log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
-      @set ps[0], v
-      filled = true
-      @updated = true
-
-    delay = if filled then settings.FILL_DELAY else 0
-
-    if vi < vs.length - 1
-      # go to the next value if there are more values.
-      setTimeout(next_val, delay)
-    else if bi < bs.length - 1
-      # go to the next box if there are no more values, but more boxes.
-      setTimeout(next_box, delay)
+      @set(ps[0], v, =>
+        @updated = true
+        delay += settings.FILL_DELAY
+        setTimeout(callback, delay))
     else
-      # go to the next strategy if there are no more boxes or values.
-      setTimeout(next_strat, delay)
+      setTimeout(callback, delay)
 
   should_thinkinsidethebox: ->
     # FIXME: Need a heuristic for when to do this...
@@ -766,7 +836,7 @@ class Solver
       @solve_loop_done()
     else
       # fill obvious cells and then choose a strategy once complete
-      @fill_obvious_cells(( => @choose_strategy()))
+      @choose_strategy()
 
 
   solve_loop_done: ->
