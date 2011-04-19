@@ -39,7 +39,7 @@ would be tried first).
 
 1. GridScan
 
-   Consider each value that occurs 4 or more times, in order of currently most
+   Consider each value that occurs 5 or more times, in order of currently most
    present on the grid to least present. For each value v, consider the boxes
    where v has not yet been filled in. For each box b, see if there is only one
    possible location p for v based on the other locations of v, and fill in v at
@@ -59,7 +59,7 @@ would be tried first).
    filled in. Let p be the set of positions where v can be placed within b. If p
    is a single position, then fill in v at this position. If all the positions
    in p are in a single row or col, then call add_cant(c, v) for all cells c in
-   the raw/col outside of b.
+   the row/col outside of b.
 
 4. ThinkOutsideTheBox
 
