@@ -480,11 +480,12 @@ class Solver
         musts.push(j) if r[j] == 0
       return { type: "must", vals: musts }
 
-  # returns an array of values in order of the number of their occurrences, with
-  # in order of most prevalent to least prevalent.
-  vals_by_occurrences: ->
+  # returns an array of values in order of the number of their occurrences,
+  # in order of most prevalent to least prevalent. only includes values which
+  # occur 5 or more times.
+  vals_by_occurrences_above_4: ->
     ord = []
-    for o in [9..1]
+    for o in [9..5]
       for v in [1..9]
         ord.push(v) if @occurrences[v] == o
     return ord
@@ -497,7 +498,11 @@ class Solver
   # Get the list of values in order of their occurrences, and start the main
   # value loop.
   GridScan: ->
-    vals = @vals_by_occurrences()
+    log "Trying GridScan"
+
+    @updated = false
+
+    vals = @vals_by_occurrences_above_4()
 
     @GridScanValLoop(vals, 0)
 
@@ -548,6 +553,7 @@ class Solver
       log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
       @set ps[0], v
       filled = true
+      @updated = true
 
     delay = if filled then settings.FILL_DELAY else 0
 
@@ -569,14 +575,20 @@ class Solver
     # tried, will never run gridscan again. this clearly isn't ideal, I feel
     # there are times I might use gridscan in real life even after doing somes
     # other strategies.
-    @prev_strategies.length == 0 or (@prev_strategies.length == 1 and
-                                     @prev_strategies[0] == "GridScan")
+    @updated and ( @prev_strategies.length == 0 or
+                   @prev_strategies.pop() == "GridScan" )
+
+
 
 
   # ThinkInsideTheBox ----------------------------------------------------------
 
   # Get a list of boxes and begin the main loop through the box list.
   ThinkInsideTheBox: ->
+    log "Trying ThinkInsideTheBox"
+
+    @updated = false
+
     boxes = [0..8]
 
     @ThinkInsideBoxLoop(boxes, 0)
@@ -621,6 +633,7 @@ class Solver
       log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
       @set ps[0], v
       filled = true
+      @updated = true
 
     delay = if filled then settings.FILL_DELAY else 0
 
@@ -720,10 +733,12 @@ class Solver
 
 
   choose_strategy: ->
-    #if @should_gridscan()
-    #  return @GridScan()
+    if @should_gridscan()
+      @prev_strategies.push "GridScan"
+      return @GridScan()
 
     if @should_thinkinsidethebox()
+      @prev_strategies.push "ThinkInsideTheBox"
       return @ThinkInsideTheBox()
 
     # FIXME these should be filled in once they're implemented.
@@ -758,6 +773,9 @@ class Solver
     log if @grid.is_valid() then "Grid solved! :)" else "Grid not solved :("
 
   solve: ->
+    @prev_strategies = []
+    @updated = true
+
     @solve_loop()
 
 

@@ -39,10 +39,11 @@ would be tried first).
 
 1. GridScan
 
-   Consider each value, in order of currently most present on the grid to least
-   present. For each value v, consider the boxes where v has not yet been filled
-   in. For each box b, see if there is only one possible location p for v based
-   on the other locations of v, and fill in v at p if there is only one such location.
+   Consider each value that occurs 4 or more times, in order of currently most
+   present on the grid to least present. For each value v, consider the boxes
+   where v has not yet been filled in. For each box b, see if there is only one
+   possible location p for v based on the other locations of v, and fill in v at
+   p if there is only one such location.
    
 2. ThinkInsideTheBox
 
