@@ -484,11 +484,17 @@ class Solver
 
   # GridScan -------------------------------------------------------------------
 
+  # Get the list of values in order of their occurrences, and start the main
+  # value loop.
   GridScan: ->
     vals = @vals_by_occurrences()
 
     @GridScanValLoop(vals, 0)
 
+  # For a specified value, get the boxes where that value has not yet been
+  # filled in. If there such boxes, then begin a box loop in the first of the
+  # boxes; if there are no such boxes ,thne either go to the next value or
+  # finish the strategy.
   GridScanValLoop: (vs, vi) ->
     v = vs[vi]
 
@@ -497,7 +503,6 @@ class Solver
     # considering for the strategy
     for b in [0..8]
       boxes.push(b) if v not in @grid.get_box(b)
-
 
     if boxes.length == 0
       # if there are no possible boxes and there are more values, move to the
@@ -512,7 +517,11 @@ class Solver
     else
       @GridScanBoxLoop(vs, vi, boxes, 0)
 
-
+  # For a specified value and box, see where the value is possible in the
+  # box. If the value is only possible in one position, then fill it in. Move
+  # on to the next box if there are more boxes; move on to the next value if
+  # there are no more boxes and there are more values; move on to the next
+  # strategy if there are n omroe boxes or values.
   GridScanBoxLoop: (vs, vi, bs, bi) ->
     v = vs[vi]
     b = bs[bi]
@@ -521,32 +530,26 @@ class Solver
 
     next_box = ( => @GridScanBoxLoop(vs, vi, bs, bi+1) )
     next_val = ( => @GridScanValLoop(vs, vi+1) )
-    done = ( => @solve_loop() )
+    next_strat = ( => @solve_loop() )
 
-    # if there are more boxes, go to the next box.
-    if bi < bs.length - 1
-      callback = next_box
-      delay = settings.FILL_DELAY
-    # if there are more values but no more boxes, go to the next value.
-    else if vi < vs.length - 1 and bi == bs.length - 1
-      callback = next_val
-      delay = settings.FILL_DELAY
-    # if there are no more values and no more boxes, go to the next strat.
-    else
-      callback = done
-      delay = settings.STRAT_DELAY
+    filled = false
 
-    # if there is only one possible location, then fill it in and wait the
-    # appropriate time to call the next method.
     if ps.length == 1
       log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
       @set ps[0], v
-      setTimeout(callback, delay)
+      filled = true
+
+    delay = if filled then settings.FILL_DELAY else 0
+
+    # go to the next box if there are more boxes.
+    if bi < bs.length - 1
+      setTimeout(next_box, delay)
+    # go to the next value if there are no more boxes, but more values.
+    else if vi < vs.length - 1 and bi == bs.length - 1
+      setTimeout(next_val, delay)
+    # go to the next strategy if there are no more values or boxes.
     else
-      # if we haven't filled in anything, then call the callback immediately,
-      # unless the callback is to go to the next strategy, in which case we
-      # should still delay.
-      if callback == done then setTimeout(callback, delay) else callback()
+      setTimeout(next_strat, settings.STRAT_DELAY)
 
   should_gridscan: ->
     # FIXME: GridScan should be run more in the beginning, and less in the
@@ -558,6 +561,22 @@ class Solver
     # other strategies.
     @prev_strategies.length == 0 or (@prev_strategies.length == 1 and
                                      @prev_strategies[0] == "GridScan")
+
+
+  # ThinkInsideTheBox ----------------------------------------------------------
+
+  ThinkInsideTheBox: ->
+    boxes = [0..8]
+    ThinkInsideBoxLoop(boxes, 0)
+
+  ThinkInsideBoxLoop: (bs, bi) ->
+
+
+  ThinkInsideValLoop: (bs, bi, vs, vi) ->
+
+  should_thinkinsidethebox: ->
+    # FIXME: Need a heuristic for when to do this...
+    true
 
 
   # SOLVE LOOP ---------------------------------------------------------------
