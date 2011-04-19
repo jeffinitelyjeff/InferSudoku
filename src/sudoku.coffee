@@ -176,7 +176,12 @@ class Grid
     return [x,y]
 
   box_to_base: (b_x, b_y, s_x, s_y) ->
-    @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
+    r = @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
+
+    if r > 80
+      log "yo!!!"
+
+    return r
 
   base_to_box: (i) ->
     helpers.cart_to_box(@base_to_cart i)
@@ -546,14 +551,14 @@ class Solver
 
     delay = if filled then settings.FILL_DELAY else 0
 
-    # go to the next box if there are more boxes.
     if bi < bs.length - 1
+      # go to the next box if there are more boxes.
       setTimeout(next_box, delay)
-    # go to the next value if there are no more boxes, but more values.
-    else if vi < vs.length - 1 and bi == bs.length - 1
+    else if vi < vs.length - 1
+      # go to the next value if there are no more boxes, but more values.
       setTimeout(next_val, delay)
-    # go to the next strategy if there are no more values or boxes.
     else
+      # go to the next strategy if there are no more values or boxes.
       setTimeout(next_strat, settings.STRAT_DELAY)
 
   should_gridscan: ->
@@ -595,8 +600,39 @@ class Solver
         # consider, then go to the next strategy.
         @solve_loop()
 
-  # See where the current value can be placed within the current box.
+  # See where the current value can be placed within the current box. If the
+  # value is only possible in one position, then fill it in. Move on to the next
+  # value if there are more values; move on to the next box if thre are no more
+  # values and there are more boxes; move on to the next strategy if there are
+  # no more values or boxes.
   ThinkInsideValLoop: (bs, bi, vs, vi) ->
+    v = vs[vi]
+    b = bs[bi]
+
+    ps = @naive_possible_positions_in_box v, b
+
+    next_val = ( => @ThinkInsideValLoop(bs, bi, vs, vi+1) )
+    next_box = ( => @ThinkInsideBoxLoop(bs, bi+1) )
+    next_strat = ( => @solve_loop() )
+
+    filled = false
+
+    if ps.length == 1
+      log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
+      @set ps[0], v
+      filled = true
+
+    delay = if filled then settings.FILL_DELAY else 0
+
+    if vi < vs.length - 1
+      # go to the next value if there are more values.
+      setTimeout(next_val, delay)
+    else if bi < bs.length - 1
+      # go to the next box if there are no more values, but more boxes.
+      setTimeout(next_box, delay)
+    else
+      # go to the next strategy if there are no more boxes or values.
+      setTimeout(next_strat, delay)
 
   should_thinkinsidethebox: ->
     # FIXME: Need a heuristic for when to do this...
@@ -647,6 +683,8 @@ class Solver
         return setTimeout(cont, settings.FILL_DELAY)
 
     for b in [0..8]
+      b_x = Math.floor(b%3)
+      b_y = Math.floor(b/3)
       vals = @grid.get_box b
 
       if helpers.num_pos(vals) == 8
@@ -658,7 +696,7 @@ class Solver
         box_idxs = []
         for j in [0..2]
           for k in [0..2]
-            box_idxs.push @grid.box_to_base(b%3, b/3, k, j)
+            box_idxs.push @grid.box_to_base(b_x, b_y, k, j)
 
         # get the position missing it.
         i = 0
@@ -682,13 +720,13 @@ class Solver
 
 
   choose_strategy: ->
-    if @should_gridscan()
-      return @GridScan()
+    #if @should_gridscan()
+    #  return @GridScan()
+
+    if @should_thinkinsidethebox()
+      return @ThinkInsideTheBox()
 
     # FIXME these should be filled in once they're implemented.
-
-    # if @should_thinkinsidethebox()
-    #   return @ThinkInsideTheBox()
 
     # if @should_smartgridscan()
     #   return @SmartGridScan()
