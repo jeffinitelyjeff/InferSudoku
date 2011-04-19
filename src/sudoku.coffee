@@ -294,6 +294,11 @@ class Grid
       return false unless @valid_array @get_box i
     return true
 
+
+
+
+
+
 ## ---------------------------------------------------------------------------
 ## Solver Class --------------------------------------------------------------
 
@@ -493,7 +498,7 @@ class Solver
 
   # For a specified value, get the boxes where that value has not yet been
   # filled in. If there such boxes, then begin a box loop in the first of the
-  # boxes; if there are no such boxes ,thne either go to the next value or
+  # boxes; if there are no such boxes, then either go to the next value or
   # finish the strategy.
   GridScanValLoop: (vs, vi) ->
     v = vs[vi]
@@ -504,18 +509,18 @@ class Solver
     for b in [0..8]
       boxes.push(b) if v not in @grid.get_box(b)
 
-    if boxes.length == 0
-      # if there are no possible boxes and there are more values, move to the
-      # next value.
-      if vi < vs.length - 1
-        @GridScanValLoop(vs, vi+1)
-      # if there are no possible boxes and there are no more values, then stop
-      # iterating.
-      else
-        @solve_loop()
-    # if there are possible boxes, then start iterating on them.
-    else
+    if boxes.length > 0
+      # if there are possible boxes, then start iterating on them.
       @GridScanBoxLoop(vs, vi, boxes, 0)
+    else
+      if vi < vs.length - 1
+        # if there are no possible boxes and there are more values, move to the
+        # next value.
+        @GridScanValLoop(vs, vi+1)
+      else
+        # if there are no possible boxes and there are no more values, then move
+        # to the next strategy
+        @solve_loop()
 
   # For a specified value and box, see where the value is possible in the
   # box. If the value is only possible in one position, then fill it in. Move
@@ -565,13 +570,32 @@ class Solver
 
   # ThinkInsideTheBox ----------------------------------------------------------
 
+  # Get a list of boxes and begin the main loop through the box list.
   ThinkInsideTheBox: ->
     boxes = [0..8]
-    ThinkInsideBoxLoop(boxes, 0)
 
+    @ThinkInsideBoxLoop(boxes, 0)
+
+  # Get the list of values which have not yet been filled in within the current
+  # box, and begin a loop through those values.
   ThinkInsideBoxLoop: (bs, bi) ->
+    filled = @grid.get_box bs[bi]
+    vals = helpers.set_subtract([1..9], filled)
 
+    if vals.length > 0
+      # if there are unfilled values, then start iterating on them
+      @ThinkInsideValLoop(bs, bi, vals, 0)
+    else
+      if bi < bs.length - 1
+        # if there are no unfilled values and there are more boxes to consider,
+        # then move on to the next box.
+        @ThinkInsideBoxLoop(bs, bi+1)
+      else
+        # if there are no unfilled values and there are no more boxes to
+        # consider, then go to the next strategy.
+        @solve_loop()
 
+  # See where the current value can be placed within the current box.
   ThinkInsideValLoop: (bs, bi, vs, vi) ->
 
   should_thinkinsidethebox: ->
