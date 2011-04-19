@@ -463,34 +463,6 @@ class Solver
     else
       callback()
 
-
-
-
-
-
-  # # updates the neighbors (cells in the same row/col/box) that the value v has
-  # # been "used up" by going in cell i. this probably shouldn't be called all the
-  # # time, since calling it all the time dosen't really reflect how a human would
-  # # think of things.
-  # record: (i,v) ->
-  #   [x,y] = @grid.base_to_cart i
-  #   [b_x, b_y, s_x, s_y] = @grid.base_to_box i
-  #
-  #   # get the indices of the cells in the same row, col, and box.
-  #   row_idxs = (@grid.cart_to_base(x,j) for j in [0..8])
-  #   col_idxs = (@grid.cart_to_base(j,y) for j in [0..8])
-  #   box_idxs = []
-  #   for j in [0..2]
-  #     for k in [0..2]
-  #      box_idxs.push @grid.box_to_base(b_x, b_y, j, k)
-  #
-  #   # combine all the indices into one array.
-  #   idxs = row_idxs.concat(col_idxs).concat(box_idxs)
-  #
-  #   # add restrictions to all unset cells in the same row, col, and box.
-  #   for idx in idxs
-  #     @add_restriction(idx, v) if @grid.get(idx) == 0
-
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
   set_c: (x,y,v, callback) ->
     @set(@grid.cart_to_base(x,y), v, callback)
@@ -507,19 +479,6 @@ class Solver
     throw "Error" if @grid.get(i) != 0
 
     @cell_restrictions[i][v] = 1
-
-    # FIXME: I don't think we should blindly be setting a value whenever a
-    # restriction makes it obvious to the computer, becasue this may very well
-    # not be obvious to a human solving the sudoku.
-    # if helpers.num_pos(@cell_restrictions[i]) == 8
-    #   j = 1
-    #   until @cell_restrictions[i][j] == 0
-    #     j += 1
-    #   # now i is the only non-restricted value, so we can fill it in
-    #   log "Setting (#{@grid.base_to_cart i}) to #{j} by adding restrictions"
-    #   @set i, j
-    #   return true
-
 
   # gets a representation of the cell restriction for the cell with base index
   # i. if the cell has a lot of restrictions, then returns a list of values
@@ -723,84 +682,6 @@ class Solver
 
 
   # SOLVE LOOP ---------------------------------------------------------------
-
-  # Finds and fills in any cells which are in a row, col, or box which is only
-  # missing one value (and thus the missing value is obvious).
-  fill_obvious_cells: (callback) ->
-    cont = ( => @fill_obvious_cells(callback))
-
-    for y in [0..8]
-      vals = @grid.get_row y
-
-      if helpers.num_pos(vals) == 8
-        # get the one missing value.
-        v = 1
-        v += 1 until v not in vals
-
-        # get the position missing it.
-        x = 0
-        x += 1 until @grid.get_c(x,y) == 0
-
-        log "Setting (#{x},#{y}) to #{v} because it's obvious"
-        @set_c x,y,v
-
-        # continue trying to fill obvious cells.
-        return setTimeout(cont, settings.FILL_DELAY)
-
-    for x in [0..8]
-      vals = @grid.get_col x
-
-      if helpers.num_pos(vals) == 8
-        # get the one missing value.
-        v = 1
-        v += 1 until v not in vals
-
-        # get the position missing it.
-        y = 0
-        y += 1 until @grid.get_c(x,y) == 0
-
-        log "Setting (#{x},#{y}) to #{v} because it's obvious"
-        @set_c x,y,v
-
-        # continue trying to fill obvious cells.
-        return setTimeout(cont, settings.FILL_DELAY)
-
-    for b in [0..8]
-      b_x = Math.floor(b%3)
-      b_y = Math.floor(b/3)
-      vals = @grid.get_box b
-
-      if helpers.num_pos(vals) == 8
-        # get the one missing value
-        v = 1
-        v += 1 until v not in vals
-
-        # get the list of indices in the box.
-        box_idxs = []
-        for j in [0..2]
-          for k in [0..2]
-            box_idxs.push @grid.box_to_base(b_x, b_y, k, j)
-
-        # get the position missing it.
-        i = 0
-        i += 1 until @grid.get(box_idxs[i]) == 0
-
-        log "Setting (#{@grid.base_to_cart(box_idxs[i])}) to #{v} because it's obvious"
-        @set box_idxs[i], v
-
-        # continue trying to fill obvious cells.
-        return setTimeout(cont, settings.FILL_DELAY)
-
-    # if we didn't find any obvious cells, then call the callback
-    return callback()
-
-
-
-
-
-
-
-
 
   choose_strategy: ->
     if @should_gridscan()
