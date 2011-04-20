@@ -180,12 +180,7 @@ class Grid
     return [x,y]
 
   box_to_base: (b_x, b_y, s_x, s_y) ->
-    r = @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
-
-    if r > 80
-      log "yo!!!"
-
-    return r
+    @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
 
   base_to_box: (i) ->
     helpers.cart_to_box(@base_to_cart i)
@@ -302,6 +297,19 @@ class Grid
       return false unless @valid_array @get_row i
       return false unless @valid_array @get_box i
     return true
+
+  # return whether base idx i is in row r.
+  idx_in_row: (i, r) ->
+    @base_to_cart(i)[1] == r
+
+  # return whether base idx i is in col r.
+  idx_in_col: (i, c) ->
+    @base_to_cart(i)[0] == c
+
+  # return whether base idx i is in box b.
+  idx_in_box: (i, b) ->
+    [b_x, b_y] = @base_to_box i
+    return 3*b_y + b_x == b
 
 
 
@@ -520,6 +528,52 @@ class Solver
         ord.push(v) if @occurrences[v] == o
     return ord
 
+  vals_by_occurrences: ->
+    ord = []
+    for o in [9..1]
+      for v in [1..9]
+        ord.push(v) if @occurrences[v] == o
+    return ord
+
+  # if the base indices are all in the same row, then returns that row;
+  # otherwise returns false.
+  same_row: (idxs) ->
+    first_row = @grid.base_to_cart(idx[0])[1]
+    idxs = _.rest(idxs)
+
+    for idx in idxs
+      # return false if one of the rows doesn't match the first.
+      return false if @grid.base_to_cart(idx)[1] != first_row
+
+    # return true if they all match the first.
+    return first_row
+
+  # if the base indices are all in the same column, then returns that col;
+  # otherwise returns false.
+  same_col: (idxs) ->
+    first_col = @grid.base_to_cart(idx[0])[0]
+    idxs = _.rest(idxs)
+
+    for idx in idxs
+      # return false if one of the cols doesn't match the first.
+      return false if @grid.base_to_cart(idx)[0] != first_col
+
+    # return true if they all match the first
+    return first_col
+
+  # if the base indices are all in the same box, then returns that box;
+  # otherwise returns false.
+  same_box: (idxs) ->
+    first_box = @grid.base_to_box(idx[0])
+    idxs = _.rest(idxs)
+
+    for idx in idxs
+      # return false if one of the boxes doesn't match the first.
+      box = @grid.base_to_box(idx)
+      return false if box[0] != first_box[0] or box[1] != first_box[1]
+
+    # return true if they all match the first
+    return first_box[0]+first_box[0]*3
 
   # STRATEGIES -----------------------------------------------------------------
 
@@ -542,6 +596,8 @@ class Solver
     if vals.length > 0
       @GridScanValLoop(vals, 0)
     else
+      @prev_results[@prev_results.length-1].success = @updated
+      setTimeout(( => @solve_loop()), settings.STRAT_DELAY)
 
   # For a specified value, get the boxes where that value has not yet been
   # filled in. If there such boxes, then begin a box loop in the first of the
@@ -618,6 +674,7 @@ class Solver
     last_result.strat == "GridScan" and last_result.success
 
   # SmartGridScan --------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # --- Consider each value, in order of currently most present on the grid to -
   # --- least present. For each value v, consider each box b where v has not ---
   # --- yet been filled in. Let p be the set of positions where v can be -------
@@ -625,10 +682,105 @@ class Solver
   # --- position (note that this is extremely similar to GridScan in this ------
   # --- case). If all the positions in p are in a single row or col, then add --
   # --- a restriction of v to all other cells in the row or col but outside of -
-  # --- b. ---------------------------------------------------------------------
+  # --- b. NOTE: This is entirely a knowledge refinement strategy (except in ---
+  # --- the case where it is exactly GridScan), because adding a restriction ---
+  # --- won't affect anything until ExhaustionSearch is run. -------------------
   # ----------------------------------------------------------------------------
 
+  # Get the list of values in order of their occurrences, and start the main
+  # value loop.
+  SmartGridScan: ->
+    log "Trying SmartGridScan"
 
+    @updated = false
+
+    vals = @vals_by_occurrences()
+
+    @SmartGridValLoop(vals, 0)
+
+  # For a specified value, get the boxes where that value has not yet been
+  # filled in. If there are such boxes, then begin a box loop in the frsit of
+  # the boxes; if there are no such boxes, then either go to the next value or
+  # finish the strategy.
+  SmartGridValLoop: (vs, vi) ->
+    v = vs[vi]
+
+    boxes = []
+    # get the boxes which don't contain v, which are the only ones we're
+    # considering for this startegy.
+    for b in [0..8]
+      boxes.push(b) if v not in @grid.get_box(b)
+
+    if boxes.length > 0
+      # if there are possible boxes, then start iterating on them.
+      @SmartGridBoxLoop(vs, vi, boxes, 0)
+    else
+      if vi < vs.length - 1
+        # if there are no possible boxes and there are more values, move to the
+        # next value.
+        @SmartGridValLoop(vs, vi+1)
+      else
+        # if there are no possible boxes and there are no more values, then move
+        # to the next strategy.
+        @prev_results[@prev_results.length-1].success = @updated
+        setTimeout(( => @solve_loop()), settings.STRAT_DELAY
+
+  # For a specified value and box, see where the values is possible in the
+  # box. If the value is only possible in one position, then fill it in (like
+  # normal GridScan). If it's possible in two or three positions, and those
+  # positions happen to be in the same rows or cols, then will add restrictions
+  # to all the other cells in the same row/col outside the box. Move on to the
+  # next box if there are more boxes; move on to the next value if there are no
+  # more boxes and there are more values; move on to the next strategy if there
+  # are no more boxes or values.
+  SmartGridBoxLoop: ->
+    v = vs[vi]
+    b = bs[bi]
+
+    ps = @naive_possible_positions_in_box v, b
+
+    next_box = ( => @SmartGridBoxLoop(vs, vi, bs, bi+1) )
+    next_val = ( => @SmartGridValLoop(vs, vi+1) )
+    next_strat = ( => @solve_loop() )
+
+    if bi < bs.length - 1
+      # go to the next box if there are more boxes.
+      callback = next_box
+      delay = 0
+    else if vi < vs.length - 1
+      # go to the next value if there no more boxes, but more values.
+      callback = next_val
+      delay = 0
+    else
+      # go to the next strategy if there are no more values or boxes.
+      callback = next_strat
+      delay = settings.STRAT_DELAY
+
+    switch ps.length
+      when 1
+        log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by SmartGridScan"
+        @set(ps[0], v, =>
+          @updated = true
+          delay += settings.FILL_DELAY
+      when 2,3
+        if @same_row(ps)
+          log "Refining knowledge base using SmartGridScan"
+          @updated = true
+
+          y = @same_row(ps)
+          for x in [0..8]
+            i = @grid.cart_to_base(x,y)
+            @add_restriction(i,v) unless @grid.idx_in_box(i,b)
+        if @same_col(ps)
+          log "Refining knowledge base using SmartGridScan"
+          @updated = true
+
+          x = @same_col(ps)
+          for y in [0..8]
+            i = @grid.cart_to_base(x,y)
+            @add_restriction(i,v) unless @grid.idx_in_box(i,b)
+
+    setTimeout(callback, delay)
 
   should_smartgridscan: ->
     # Should do a smart gridscan if the last attempt at gridscan failed. this
@@ -736,10 +888,12 @@ class Solver
       domhelpers.announce_strategy "ThinkInside<br />TheBox"
       return @ThinkInsideTheBox()
 
-    # FIXME these should be filled in once they're implemented.
+    if @should_smartgridscan()
+      @prev_results.push {strat: "SmartGridSCan"}
+      domhelpers.announce_strategy "SmartGridScan"
+      return @SmartGridScan()
 
-    # if @should_smartgridscan()
-    #   return @SmartGridScan()
+    # FIXME
 
     # if @should_thinkoutsidethebox()
     #   return @ThinkOutsideTheBox()
