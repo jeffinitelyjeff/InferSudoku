@@ -727,7 +727,7 @@ class Solver
         # if there are no possible boxes and there are no more values, then move
         # to the next strategy.
         @prev_results[@prev_results.length-1].success = @updated
-        setTimeout(( => @solve_loop()), settings.STRAT_DELAY
+        setTimeout(( => @solve_loop()), settings.STRAT_DELAY)
 
   # For a specified value and box, see where the values is possible in the
   # box. If the value is only possible in one position, then fill it in (like
@@ -752,7 +752,7 @@ class Solver
       callback = next_box
       delay = 0
     else if vi < vs.length - 1
-      # go to the next value if there no more boxes, but more values.
+      # go to the next value if there are no more boxes, but more values.
       callback = next_val
       delay = 0
     else
@@ -765,7 +765,7 @@ class Solver
         log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by SmartGridScan"
         @set(ps[0], v, =>
           @updated = true
-          delay += settings.FILL_DELAY
+          delay += settings.FILL_DELAY)
       when 2,3
         if @same_row(ps)
           log "Refining knowledge base using SmartGridScan"
@@ -775,7 +775,7 @@ class Solver
           for x in [0..8]
             i = @grid.cart_to_base(x,y)
             @add_restriction(i,v) unless @grid.idx_in_box(i,b)
-        if @same_col(ps)
+        else if @same_col(ps)
           log "Refining knowledge base using SmartGridScan"
           @updated = true
 
@@ -791,9 +791,10 @@ class Solver
     # should work because gridscan is always run first, so there should always
     # be previous strategies with gridscan among them.
     last_gridscan = -1
-    for i in [0...@prev_results.length]
-      last_gridscan = i if @prev_results[i].strat == "GridScan"
-    return @prev_results[last_gridscan].success
+    _.each(@prev_results, (result, i) ->
+      last_gridscan = i if result.strat == "GridScan" )
+    return not @prev_results[last_gridscan].success
+
 
 
   # ThinkInsideTheBox ----------------------------------------------------------
@@ -875,9 +876,13 @@ class Solver
       setTimeout(callback, delay)
 
   should_thinkinsidethebox: ->
-    # FIXME: Need a heuristic for when to do this...
-    last_strat =
-    true
+    # do ThinkInsideTheBox unless the last attempt at ThinkInsideTheBox failed.
+    last_thinkinside = -1
+    _.each(@prev_results, (result, i) ->
+      last_gridscan = i if result.strat == "ThinkInsideTheBox" )
+    return @prev_results[last_gridscan].success or last_thinkinside == -1
+
+
 
   # SOLVE LOOP ---------------------------------------------------------------
 
