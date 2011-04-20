@@ -331,6 +331,9 @@ class Solver
       for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
 
+  prev_strats: ->
+    strats = (@prev_results[i].strat for i in [0...@prev_results.length])
+
   # get an array of all naively impossible values to fill into the cell at base
   # index i in the grid. the impossible values are simply the values filled in
   # to cells that share a row, col, or box with this cell. will return -1 if the
@@ -536,7 +539,9 @@ class Solver
 
     vals = @vals_by_occurrences_above_4()
 
-    @GridScanValLoop(vals, 0)
+    if vals.length > 0
+      @GridScanValLoop(vals, 0)
+    else
 
   # For a specified value, get the boxes where that value has not yet been
   # filled in. If there such boxes, then begin a box loop in the first of the
@@ -563,7 +568,7 @@ class Solver
         # if there are no possible boxes and there are no more values, then move
         # to the next strategy
         @prev_results[@prev_results.length-1].success = @updated
-        @solve_loop()
+        setTimeout(( => @solve_loop()), settings.STRAT_DELAY)
 
   # For a specified value and box, see where the value is possible in the
   # box. If the value is only possible in one position, then fill it in. Move
@@ -623,8 +628,16 @@ class Solver
   # --- b. ---------------------------------------------------------------------
   # ----------------------------------------------------------------------------
 
-  # should_smartgridscan: ->
 
+
+  should_smartgridscan: ->
+    # Should do a smart gridscan if the last attempt at gridscan failed. this
+    # should work because gridscan is always run first, so there should always
+    # be previous strategies with gridscan among them.
+    last_gridscan = -1
+    for i in [0...@prev_results.length]
+      last_gridscan = i if @prev_results[i].strat == "GridScan"
+    return @prev_results[last_gridscan].success
 
 
   # ThinkInsideTheBox ----------------------------------------------------------
@@ -664,7 +677,7 @@ class Solver
         # if there are no unfilled values and there are no more boxes to
         # consider, then go to the next strategy.
         @prev_results[@prev_results.length-1].success = @updated
-        @solve_loop()
+        setTimeout(( => @solve_loop()), settings.STRAT_DELAY)
 
   # See where the current value can be placed within the current box. If the
   # value is only possible in one position, then fill it in. Move on to the next
