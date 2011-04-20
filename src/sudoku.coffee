@@ -1,6 +1,6 @@
 settings =
   # delay after filling in cells
-  FILL_DELAY: 250
+  FILL_DELAY: 50
   # delay between strategies
   STRAT_DELAY: 100
   # number of times to run the solve loop before dying
@@ -121,6 +121,10 @@ domhelpers =
   # HTML element at the specified position in the Sudoku grid.
   set_input_val: (x, y, v) ->
     $(@sel(x,y) + " .num").val(v)
+
+  # informs the display of a new display.
+  announce_strategy: (s) ->
+    $("#strat").html(s)
 
 
 ## ----------------------------------------------------------------------------
@@ -320,8 +324,6 @@ class Solver
     @cell_restrictions = (make_restriction() for i in [0...81])
 
     @solve_iter = 0
-
-    @prev_strategies = []
 
     # count the number of occurrences of each value.
     @occurrences = [0,0,0,0,0,0,0,0,0,0]
@@ -560,6 +562,7 @@ class Solver
       else
         # if there are no possible boxes and there are no more values, then move
         # to the next strategy
+        @prev_results[@prev_results.length-1].success = @updated
         @solve_loop()
 
   # For a specified value and box, see where the value is possible in the
@@ -597,18 +600,32 @@ class Solver
         delay += settings.FILL_DELAY
         setTimeout(callback, delay))
     else
+      if callback == next_strat
+        @prev_results[@prev_results.length-1].success = @updated
       setTimeout(callback, delay)
 
   should_gridscan: ->
-    # FIXME: GridScan should be run more in the beginning, and less in the
-    # end. Need a good heuristic to represent the "beginning" and the "end".
+    # for now, will only run gridscan if the last operation was gridscan and it
+    # worked. this reflects how I use it mainly in the beginning of a puzzle.
+    return true if @prev_results.length == 0
 
-    # for now, will only run gridscan FIRST. that is, once another technique is
-    # tried, will never run gridscan again. this clearly isn't ideal, I feel
-    # there are times I might use gridscan in real life even after doing somes
-    # other strategies.
-    @updated and ( @prev_strategies.length == 0 or
-                   @prev_strategies.pop() == "GridScan" )
+    last_result = @prev_results[@prev_results.length-1]
+    last_result.strat == "GridScan" and last_result.success
+
+  # SmartGridScan --------------------------------------------------------------
+  # --- Consider each value, in order of currently most present on the grid to -
+  # --- least present. For each value v, consider each box b where v has not ---
+  # --- yet been filled in. Let p be the set of positions where v can be -------
+  # --- placed within b. If p is a single position, then fill in v at this -----
+  # --- position (note that this is extremely similar to GridScan in this ------
+  # --- case). If all the positions in p are in a single row or col, then add --
+  # --- a restriction of v to all other cells in the row or col but outside of -
+  # --- b. ---------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
+
+  # should_smartgridscan: ->
+
+
 
   # ThinkInsideTheBox ----------------------------------------------------------
   # ----------------------------------------------------------------------------
@@ -646,6 +663,7 @@ class Solver
       else
         # if there are no unfilled values and there are no more boxes to
         # consider, then go to the next strategy.
+        @prev_results[@prev_results.length-1].success = @updated
         @solve_loop()
 
   # See where the current value can be placed within the current box. If the
@@ -683,21 +701,26 @@ class Solver
         delay += settings.FILL_DELAY
         setTimeout(callback, delay))
     else
+      if callback == next_strat
+        @prev_results[@prev_results.length-1].success = @updated
       setTimeout(callback, delay)
 
   should_thinkinsidethebox: ->
     # FIXME: Need a heuristic for when to do this...
+    last_strat =
     true
 
   # SOLVE LOOP ---------------------------------------------------------------
 
   choose_strategy: ->
     if @should_gridscan()
-      @prev_strategies.push "GridScan"
+      @prev_results.push {strat: "GridScan"}
+      domhelpers.announce_strategy "GridScan"
       return @GridScan()
 
     if @should_thinkinsidethebox()
-      @prev_strategies.push "ThinkInsideTheBox"
+      @prev_results.push {strat: "ThinkInsideTheBox"}
+      domhelpers.announce_strategy "ThinkInside<br />TheBox"
       return @ThinkInsideTheBox()
 
     # FIXME these should be filled in once they're implemented.
@@ -731,8 +754,12 @@ class Solver
   solve_loop_done: ->
     log if @grid.is_valid() then "Grid solved! :)" else "Grid not solved :("
 
+    $("#strat").animate(`{opacity: 0.0, top: '+=75px'}`, 500, 'easeOutQuad', ->
+      $("#solve-b").animate(`{opacity: 1.0, top: '-=50px'}`, 500, 'easeInQuad', ->
+      $("#solve-b, #input-b, input.num").attr('disabled', false)))
+
   solve: ->
-    @prev_strategies = []
+    @prev_results = []
     @updated = true
 
     @solve_loop()
@@ -775,6 +802,7 @@ evil = '''
 '''
 
 $(document).ready ->
+  $("#strat").fadeTo(0, 0)
   log 'init webapp'
 
   $(document).mousemove( (e) ->
@@ -826,11 +854,17 @@ $(document).ready ->
 
 
   $("#solve-b").click ->
-    log "Creating a grid object"
-    g = new Grid()
+    $("#solve-b, #input-b, input.num").attr('disabled', true)
+    $("#solve-b").animate(`{opacity: 0.0, top: '+=50px'}`, 250, 'easeOutQuad', ->
+      $("#strat").animate(`{opacity: 1.0, top: '-75px'}`, 250, 'easeInQuad', ->
 
-    log "Creating a solver object"
-    s = new Solver(g)
+        log "Creating a grid object"
+        g = new Grid()
 
-    log "Solving..."
-    s.solve()
+        log "Creating a solver object"
+        s = new Solver(g)
+
+        log "Solving..."
+        s.solve()
+      ))
+

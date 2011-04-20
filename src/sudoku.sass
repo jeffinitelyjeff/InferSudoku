@@ -17,12 +17,13 @@
   @include place-vert(50%, $height)
 
 /* Number formatting */
-.num
+.num, .num:disabled
   background: none
   border: none
   width: 20px
   height: 20px
   text-align: center
+  color: #000
 
   .filled
     font-weight: bold
@@ -78,10 +79,17 @@ $height: 355px
     margin-bottom: 10px
   
   #solve-b
+    position: relative
     font-size: 40px
     height: 50px
     width: 100%
-      
+
+  #strat
+    font-size: 30px
+    text-align: center
+    position: relative
+    width: 100%
+    
 #output-col
   float: left
   width: $right-col-width
