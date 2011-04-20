@@ -1,6 +1,6 @@
 settings =
   # delay after filling in cells
-  FILL_DELAY: 50
+  FILL_DELAY: 250
   # delay between strategies
   STRAT_DELAY: 100
   # number of times to run the solve loop before dying
@@ -109,7 +109,7 @@ domhelpers =
 
   display_pos: (x,y) ->
     fn = ->
-      $("#pos-label").html("(#{x}, #{y})")
+      $("#pos-label").html("(#{x},#{y})")
     $(@sel(x,y)).hover(fn)
 
   # a low-level function to get the value of the input HTML element at the
@@ -516,9 +516,14 @@ class Solver
     return ord
 
 
-  # STRATEGIES ---------------------------------------------------------------
+  # STRATEGIES -----------------------------------------------------------------
 
   # GridScan -------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
+  # --- Consider each value that occurs 5 or more times, in order of currently -
+  # --- most present on the grid to least present. For each value v, consider --
+  # --- the boxes b where v has not yet been filled in. ------------------------
+  # ----------------------------------------------------------------------------
 
   # Get the list of values in order of their occurrences, and start the main
   # value loop.
@@ -605,10 +610,14 @@ class Solver
     @updated and ( @prev_strategies.length == 0 or
                    @prev_strategies.pop() == "GridScan" )
 
-
-
-
   # ThinkInsideTheBox ----------------------------------------------------------
+  # ----------------------------------------------------------------------------
+  # --- For each box b and for each value v which has not yet been filled in ---
+  # --- within b, see where v could possibly be placed within b (consulting ----
+  # --- the values in corresponding rows/cols and any cant/must arrays filled --
+  # --- in within b); if v can only be placed in one position in b, then -------
+  # --- fill it in. ------------------------------------------------------------
+  # ----------------------------------------------------------------------------
 
   # Get a list of boxes and begin the main loop through the box list.
   ThinkInsideTheBox: ->
@@ -679,7 +688,6 @@ class Solver
   should_thinkinsidethebox: ->
     # FIXME: Need a heuristic for when to do this...
     true
-
 
   # SOLVE LOOP ---------------------------------------------------------------
 
@@ -768,6 +776,18 @@ evil = '''
 
 $(document).ready ->
   log 'init webapp'
+
+  $(document).mousemove( (e) ->
+    $("#pos-label").css('left', e.pageX + 5)
+    $("#pos-label").css('top', e.pageY + 5)
+  )
+
+  display_pos = (e) ->
+    $("#pos-label").css('display', 'inline')
+  hide_pos = (e) ->
+    $("#pos-label").css('display', 'none')
+
+  $("#grid").hover(display_pos, hide_pos)
 
   $("#stdin").val(easy)
 
