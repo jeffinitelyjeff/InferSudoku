@@ -381,6 +381,8 @@ class Solver
       i = @cart_to_base x,y
       ps.push(i) unless v in @naive_impossible_values(i)
 
+    return ps
+
   # gets a list of positions in a specified col where v can be filled in based
   # on naive_impossible_values. the row is specified as an x-coordinate of
   # cartesian coordinates, and positions are returned as base indices of the grid.
@@ -389,6 +391,8 @@ class Solver
     for y in [0..8]
       i = @cart_to_base x,y
       ps.push(i) unless v in @naive_impossible_values(i)
+
+    return ps
 
   # wrapper for @grid.set which will update the knowledge base.
   set: (i, v, callback) ->
@@ -399,10 +403,10 @@ class Solver
     [x,y] = @grid.base_to_cart i
     [b_x,b_y,s_x,s_y] = @grid.base_to_box i
 
-    fun =  =>
+    fun =  ( =>
       @fill_obvious_row(y, =>
       @fill_obvious_col(x, =>
-      @fill_obvious_box(b_x, b_y, callback) ) )
+      @fill_obvious_box(b_x, b_y, callback) ) ) )
 
     setTimeout(fun, settings.FILL_DELAY)
 
