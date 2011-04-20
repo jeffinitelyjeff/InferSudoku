@@ -488,14 +488,17 @@ class Solver
   set_b: (b_x, b_y, s_x, s_y, callback) ->
     @set(@grid.cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v, callback)
 
-  # adds a restriction of value v to cell with base index i. if this restriction
-  # made it so a cell only has one possible value, then the value will be
-  # set. returns whether a value was set.
+  # adds a restriction of value v to cell with base index i. returns whether the
+  # restriction was useful information (ie, if the restriction wasn't already in
+  # the database of restrictions)
   add_restriction: (i, v) ->
     # we should only be adding restrictions to cells which aren't set yet.
     throw "Error" if @grid.get(i) != 0
 
+    prev = @cell_restrictions[i][v]
     @cell_restrictions[i][v] = 1
+    return prev == 0
+
 
   # gets a representation of the cell restriction for the cell with base index
   # i. if the cell has a lot of restrictions, then returns a list of values
@@ -542,7 +545,7 @@ class Solver
   # if the base indices are all in the same row, then returns that row;
   # otherwise returns false.
   same_row: (idxs) ->
-    first_row = @grid.base_to_cart(idx[0])[1]
+    first_row = @grid.base_to_cart(idxs[0])[1]
     idxs = _.rest(idxs)
 
     for idx in idxs
@@ -555,7 +558,7 @@ class Solver
   # if the base indices are all in the same column, then returns that col;
   # otherwise returns false.
   same_col: (idxs) ->
-    first_col = @grid.base_to_cart(idx[0])[0]
+    first_col = @grid.base_to_cart(idxs[0])[0]
     idxs = _.rest(idxs)
 
     for idx in idxs
@@ -737,7 +740,7 @@ class Solver
   # next box if there are more boxes; move on to the next value if there are no
   # more boxes and there are more values; move on to the next strategy if there
   # are no more boxes or values.
-  SmartGridBoxLoop: ->
+  SmartGridBoxLoop: (vs, vi, bs, bi) ->
     v = vs[vi]
     b = bs[bi]
 
@@ -774,7 +777,7 @@ class Solver
           y = @same_row(ps)
           for x in [0..8]
             i = @grid.cart_to_base(x,y)
-            @add_restriction(i,v) unless @grid.idx_in_box(i,b)
+            @add_restriction(i,v) unless @grid.idx_in_box(i,b) or @grid.get(i)!=0
         else if @same_col(ps)
           log "Refining knowledge base using SmartGridScan"
           @updated = true
@@ -782,7 +785,7 @@ class Solver
           x = @same_col(ps)
           for y in [0..8]
             i = @grid.cart_to_base(x,y)
-            @add_restriction(i,v) unless @grid.idx_in_box(i,b)
+            @add_restriction(i,v) unless @grid.idx_in_box(i,b) or @grid.get(i)!=0
 
     setTimeout(callback, delay)
 
@@ -879,8 +882,8 @@ class Solver
     # do ThinkInsideTheBox unless the last attempt at ThinkInsideTheBox failed.
     last_thinkinside = -1
     _.each(@prev_results, (result, i) ->
-      last_gridscan = i if result.strat == "ThinkInsideTheBox" )
-    return @prev_results[last_gridscan].success or last_thinkinside == -1
+      last_thinkinside = i if result.strat == "ThinkInsideTheBox" )
+    return last_thinkinside == -1 or @prev_results[last_thinkinside].success
 
 
 
