@@ -85,10 +85,8 @@ helpers =
 
   # Test if two arrays are equal.
   eq: (xs, ys) ->
-    return false if xs.length != ys.length
-    for i in xs.length
-      return false if xs[i] != ys[i]
-    return true
+    z = _.zip(xs, ys)
+    _.reduce(z,( (memo, pair) -> memo and pair[0] == pair[1]), true)
 
   # Count the number of elements of an array which
   # count the number of elements of an array which are greater than 0. this
