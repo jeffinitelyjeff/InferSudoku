@@ -68,56 +68,40 @@
 
 #### Settings
 
-settings =
+# Delay after filling in cells.
+FILL_DELAY = 50
 
-  # Delay after filling in cells.
-  FILL_DELAY: 50
+# Delay after finishing a strategy.
+STRAT_DELAY = 100
 
-  # Delay after finishing a strategy.
-  STRAT_DELAY: 100
-
-  # Maximum number of iterations to try for solve loop.
-  max_solve_iter: 10
+# Maximum number of iterations to try for solve loop.
+max_solve_iter = 10
 
 #### Basic Helper Functions
 
-helpers =
+# Count the number of elements of an array which are greater than 0.
+num_pos = (xs) ->
+  _.reduce(xs, ( (memo, x) -> if x > 0 then memo + 1 else memo ), 0)
 
-  # Count the number of elements of an array which
-  # count the number of elements of an array which are greater than 0. this
-  # will be used for a grid to see how many elements have been filled into
-  # particular rows/cols/boxes (empty values are stored as 0's).
-  num_pos: (xs) ->
-    i = 0
-    for x in xs
-      i += 1 if x > 0
-    return i
+#### Cordinate Manipulation
 
-  ## Coordinate manipulation.
+# Cartesian coordinates -> box coordinates
+# x,y -> [b_x, b_y, s_x, s_y]
+cart_to_box = (x,y) ->
+  b_x = Math.floor x / 3 # which big column
+  b_y = Math.floor y / 3 # which big row
+  s_x = Math.floor x % 3 # which small column within b_x
+  s_y = Math.floor y % 3 # which small row within b_y
 
-  # cartesian coordinates -> box coordinates
-  # x,y -> [b_x, b_y, s_x, s_y]
-  # two parameters are expected, but if only one parameter is passed, then the
-  # first argument is treated as an array of the two parameters.
-  cart_to_box: (x,y) ->
-    unless y?
-      y = x[1]
-      x = x[0]
+  return [b_x, b_y, s_x, s_y]
 
-    b_x = Math.floor x / 3 # which big column
-    b_y = Math.floor y / 3 # which big row
-    s_x = Math.floor x % 3 # which small column within b_x
-    s_y = Math.floor y % 3 # which small row within b_y
+# Box coordinates -> cartesian coordinates
+# b_x,b_y,s_x,s_y -> [x, y]
+box_to_cart = (b_x, b_y, s_x, s_y) ->
+  x = 3*b_x + s_x
+  y = 3*b_y + s_y
 
-    return [b_x, b_y, s_x, s_y]
-
-  # box coordinates -> cartesian coordinates
-  # b_x,b_y,s_x,s_y -> [x, y]
-  box_to_cart: (b_x, b_y, s_x, s_y) ->
-    x = 3*b_x + s_x
-    y = 3*b_y + s_y
-
-    return [x, y]
+  return [x, y]
 
 ## ---------------------------------------------------------------------------
 ## Helpers for interactions with the DOM -------------------------------------
@@ -127,7 +111,7 @@ domhelpers =
   ## JQuery selectors.
 
   sel_row: (x,y) ->
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_box x, y
+    [b_x, b_y, s_x, s_y] = cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
@@ -135,7 +119,7 @@ domhelpers =
     return s
 
   sel_col: (x,y) ->
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_box x, y
+    [b_x, b_y, s_x, s_y] = cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
@@ -143,7 +127,7 @@ domhelpers =
     return s
 
   sel_box: (x,y) ->
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_box x, y
+    [b_x, b_y, s_x, s_y] = cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
@@ -151,7 +135,7 @@ domhelpers =
     return s
 
   sel: (x, y) ->
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_box x,y
+    [b_x, b_y, s_x, s_y] = cart_to_box x,y
     return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
 
   color_adjacent: (x,y) ->
@@ -238,10 +222,10 @@ class Grid
     return [x,y]
 
   box_to_base: (b_x, b_y, s_x, s_y) ->
-    @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
+    @cart_to_base box_to_cart(b_x, b_y, s_x, s_y)
 
   base_to_box: (i) ->
-    helpers.cart_to_box(@base_to_cart i)
+    cart_to_box((@base_to_cart i)...)
 
   # access an element using base indices.
   get: (i) ->
@@ -253,7 +237,7 @@ class Grid
 
   # access an element using box coordinates
   get_b: (b_x, b_y, s_x, s_y) ->
-    @get @cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y)
+    @get @cart_to_base box_to_cart(b_x, b_y, s_x, s_y)
 
   # set a cell specified with a base index i to a value v.
   set: (i, v) ->
@@ -276,7 +260,7 @@ class Grid
 
   # set a cell specified by box coordinates (b_x,b_y,s_x,s_y) to a value v.
   set_b: (b_x, b_y, s_x, s_y) ->
-    @set(@cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v)
+    @set(@cart_to_base box_to_cart(b_x, b_y, s_x, s_y), v)
 
   # returns an array of all the values in a particular box, either specified
   # as a pair of coordinates or as an index (so the 6th box is the box
@@ -302,7 +286,7 @@ class Grid
     else
       cart = @base_to_cart x
 
-    [b_x, b_y, s_x, s_y] = helpers.cart_to_box cart
+    [b_x, b_y, s_x, s_y] = cart_to_box cart...
     @get_box b_x, b_y
 
   # gets the arroy of values from particular row
@@ -482,13 +466,13 @@ class Solver
       @fill_obvious_col(x, =>
       @fill_obvious_box(b_x, b_y, callback) ) ) )
 
-    setTimeout(fun, settings.FILL_DELAY)
+    setTimeout(fun, FILL_DELAY)
 
   # if the specified row only has one value missing, then will fill in that value.
   fill_obvious_row: (y, callback) ->
     vals = @grid.get_row y
 
-    if helpers.num_pos(vals) == 8
+    if num_pos(vals) == 8
       # get the one missing value
       v = 1
       v += 1 until v not in vals
@@ -507,7 +491,7 @@ class Solver
   fill_obvious_col: (x, callback) ->
     vals = @grid.get_col x
 
-    if helpers.num_pos(vals) == 8
+    if num_pos(vals) == 8
       # get the one missing value
       v = 1
       v += 1 until v not in vals
@@ -533,7 +517,7 @@ class Solver
 
     vals = @grid.get_box b
 
-    if helpers.num_pos(vals) == 8
+    if num_pos(vals) == 8
       # get the one missing value
       v = 1
       v += 1 until v not in vals
@@ -560,7 +544,7 @@ class Solver
 
   # wrapper for @grid.set_b which will update the knowldege base if it needs to.
   set_b: (b_x, b_y, s_x, s_y, callback) ->
-    @set(@grid.cart_to_base helpers.box_to_cart(b_x, b_y, s_x, s_y), v, callback)
+    @set(@grid.cart_to_base box_to_cart(b_x, b_y, s_x, s_y), v, callback)
 
   # adds a restriction of value v to cell with base index i. returns whether the
   # restriction was useful information (ie, if the restriction wasn't already in
@@ -584,7 +568,7 @@ class Solver
   # the list of values either possible or impossle.
   get_restrictions: (i) ->
     r = @restrictions[i]
-    n = helpers.num_pos r
+    n = num_pos r
 
     if n == 0
       return { type: "none" }
@@ -678,7 +662,7 @@ class Solver
       @GridScanValLoop(vals, 0)
     else
       @prev_results[@prev_results.length-1].success = @updated
-      setTimeout(( => @solve_loop()), settings.STRAT_DELAY)
+      setTimeout(( => @solve_loop()), STRAT_DELAY)
 
   # For a specified value, get the boxes where that value has not yet been
   # filled in. If there such boxes, then begin a box loop in the first of the
@@ -705,7 +689,7 @@ class Solver
         # if there are no possible boxes and there are no more values, then move
         # to the next strategy
         @prev_results[@prev_results.length-1].success = @updated
-        setTimeout(( => @solve_loop()), settings.STRAT_DELAY)
+        setTimeout(( => @solve_loop()), STRAT_DELAY)
 
   # For a specified value and box, see where the value is possible in the
   # box. If the value is only possible in one position, then fill it in. Move
@@ -733,13 +717,13 @@ class Solver
     else
       # go to the next strategy if there are no more values or boxes.
       callback = next_strat
-      delay = settings.STRAT_DELAY
+      delay = STRAT_DELAY
 
     if ps.length == 1
       log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
       @set(ps[0], v, =>
         @updated = true
-        delay += settings.FILL_DELAY
+        delay += FILL_DELAY
         setTimeout(callback, delay))
     else
       if callback == next_strat
@@ -804,7 +788,7 @@ class Solver
         # if there are no possible boxes and there are no more values, then move
         # to the next strategy.
         @prev_results[@prev_results.length-1].success = @updated
-        setTimeout(( => @solve_loop()), settings.STRAT_DELAY)
+        setTimeout(( => @solve_loop()), STRAT_DELAY)
 
   # For a specified value and box, see where the values is possible in the
   # box. If the value is only possible in one position, then fill it in (like
@@ -835,14 +819,14 @@ class Solver
     else
       # go to the next strategy if there are no more values or boxes.
       callback = next_strat
-      delay = settings.STRAT_DELAY
+      delay = STRAT_DELAY
 
     switch ps.length
       when 1
         log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by SmartGridScan"
         @set(ps[0], v, =>
           @updated = true
-          delay += settings.FILL_DELAY)
+          delay += FILL_DELAY)
       when 2,3
         if @same_row(ps)
           log "Refining knowledge base using SmartGridScan"
@@ -913,7 +897,7 @@ class Solver
         # if there are no unfilled values and there are no more boxes to
         # consider, then go to the next strategy.
         @prev_results[@prev_results.length-1].success = @updated
-        setTimeout(( => @solve_loop()), settings.STRAT_DELAY)
+        setTimeout(( => @solve_loop()), STRAT_DELAY)
 
   # See where the current value can be placed within the current box. If the
   # value is only possible in one position, then fill it in. Move on to the next
@@ -941,13 +925,13 @@ class Solver
     else
       # go to the next strategy if there are no more boxes or values.
       callback = next_strat
-      delay = settings.STRAT_DELAY
+      delay = STRAT_DELAY
 
     if ps.length == 1
       log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
       @set(ps[0], v, =>
         @updated = true
-        delay += settings.FILL_DELAY
+        delay += FILL_DELAY
         setTimeout(callback, delay))
     else
       if callback == next_strat
@@ -997,7 +981,7 @@ class Solver
     log "iteration #{@solve_iter}"
 
     # done if the grid is complete or we've done too many iterations
-    done = @grid.is_valid() or @solve_iter > settings.max_solve_iter
+    done = @grid.is_valid() or @solve_iter > max_solve_iter
 
     if done
       @solve_loop_done()
