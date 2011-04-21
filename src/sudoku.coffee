@@ -118,14 +118,11 @@ base_to_box = (i) ->
 box_to_base = (b_x, b_y, s_x, s_y) ->
   cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
 
+#### DOM Interaction Functions
 
+dom =
 
-## ---------------------------------------------------------------------------
-## Helpers for interactions with the DOM -------------------------------------
-
-domhelpers =
-
-  ## JQuery selectors.
+  ### JQuery selectors.
 
   sel_row: (x,y) ->
     [b_x, b_y, s_x, s_y] = cart_to_box x, y
