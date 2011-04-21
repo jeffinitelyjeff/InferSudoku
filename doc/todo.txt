@@ -10,6 +10,12 @@
   + Restrictions: cell I cannot be values V1, V2, ..., Vn.
   + Clusters: for row/col/box I, value V can only be in positions P1, P2, ...,
   Pn.
+  
+- Don't have max iterations for solve loop, just stop if every strategy has been
+  tried and failed.
+  
+- Refactor to store a sequence of steps, and then animate the steps; avoid all
+  the callback bs.
 
 
 ## Functions ##

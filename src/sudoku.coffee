@@ -1,31 +1,96 @@
+# Sudoku.coffee is a sudoku solver created by Jeff Ruberg for a project in
+# COMP352 - Topics in Artificial Intelligence at Wesleyan University. The solver
+# uses human-level inference to solve a sudoku puzzle like a human, particularly
+# I, would. To this effect it uses a variety of strategies--some of which act
+# purely to fill in cells if possible, some of which act purely to refine
+# information about possible cell values, and some of which lie somewhere in
+# between. The goal of the project was to create a solver which imitated the
+# processes I would use to solve a sudoku, and, ideally, to replicate the order
+# of actions that I would take.
+#
+# It will be helpful to define some terminology that will be used abundantly
+# throughout the code and documentation.
+#
+# - **grid** The Sudoku board.
+# - **cell** The smallest division of the grid; there are 81 cells, arranged in
+#            rows of 9 by 9.
+# - **value** A number in the range [1,9], and represents an item that can be
+#             used to fill in a cell.
+# - **possible value** A *possible value* for a particular cell is a value which
+#                      can be placed in the cell without contradicting other
+#                      information we know about the grid at the time. Note:
+#                      this definition is very subjective, and very dependent on
+#                      "what we know at the time"; in the end, only one value is
+#                      really "possible" for each cell. We will try to avoid
+#                      using the term "possible value" without specifying the
+#                      context of "possible."
+# - **naively possible value** A value which is possible in a particular cell
+#                              when considering only the other values which are
+#                              currently filled in on the grid.
+# - **informed possible value** A value which is possible in a particular cell
+#                               when considering the other values currently
+#                               filled in and all relevant information about
+#                               cell possibilites which we are storing.
+# - **row** A row of the Sudoku grid.
+# - **col** A column of the Sudoku grid.
+# - **box** One of the nine 3x3 subsections of the grid.
+# - **group** A row, col, or box.
+# - **valid** A group is *valid* if it contains one of each of the values 1-9
+# - **solved** A Sudoku grid is *solved* if all 9 rows, all 9 cols, and all 9
+#              boxes are valid.
+# - **strategy** A method/algorithm for filling in cell values or gathering
+#                information about possible cell values or restrictions with the
+#                goal of bringing the grid closer to a solved state.
+# - **declarative strategy** A strategy which aims to fill in values into cells
+#                            without attempting to update stored information
+#                            about cells' possibilities.
+# - **knowledge refinement strategy** A strategy which aims to update stored
+#                                     information about cells' possibilites and
+#                                     not fill in cell values.
+# - **hybrid strategy** A strategy which aims to fill in values into cells and
+#                       may update stored information about cells'
+#                       possibilities.
+# - **cartesian coordinates** A system of describing cell positions in the form
+#                             (c, r) where c is a col number and r is a row
+#                             number.
+# - **box coordinates** A system of describing cell positions in the form (bx,
+#                       by, sx, sy) where (bx, by) are the cartesian coordinates
+#                       of the box which the cell belongs to (note that boxes
+#                       are in the range [0-2]x[0-2]) and (sx, sy) are the
+#                       certesian coordinates of the cell within the box (also
+#                       in the range [0-2]x[0-2])
+# - **base index** An index into the sudoku grid internal representation, which
+#                  is stored as a 81-element array.
+# - **obvious value** A cell value is *obvious* if the value is not yet filled
+#                     in, but it is in a group which has all other values filled
+#                     in.
+
+
+#### Settings
+
 settings =
-  # delay after filling in cells
+
+  # Delay after filling in cells.
   FILL_DELAY: 50
-  # delay between strategies
+
+  # Delay after finishing a strategy.
   STRAT_DELAY: 100
-  # number of times to run the solve loop before dying
+
+  # Maximum number of iterations to try for solve loop.
   max_solve_iter: 10
 
-## ---------------------------------------------------------------------------
-## General Helpers -----------------------------------------------------------
+#### Basic Helper Functions
 
 helpers =
 
- ## Basic helper functions.
-
+  # Test if two arrays are equal.
   eq: (xs, ys) ->
     return false if xs.length != ys.length
     for i in xs.length
       return false if xs[i] != ys[i]
     return true
 
-  # returns the set which contains all elements of x which are not elements of y.
-  set_subtract: (xs, ys) ->
-    result = []
-    for x in xs
-      result.push x unless x in ys
-    return result
-
+  # Count the number of elements of an array which
   # count the number of elements of an array which are greater than 0. this
   # will be used for a grid to see how many elements have been filled into
   # particular rows/cols/boxes (empty values are stored as 0's).
@@ -340,8 +405,8 @@ class Solver
     # the 4th row would need to have value 2 in the first 3 spots.
     @clusters = []
     make_empty_cluster = -> [0,0,0,0,0,0,0,0,0]
-    make_emtpy_cluster_vals = (make_empty_cluster() for i in [1..9])
-    make_empty_cluster_groups = (make_empty_cluster_vals() for i in [0..8])
+    make_empty_cluster_vals = -> (make_empty_cluster() for i in [1..9])
+    make_empty_cluster_groups = -> (make_empty_cluster_vals() for i in [0..8])
     @clusters = (make_empty_cluster_groups() for i in [0..2])
 
     @solve_iter = 0
@@ -360,16 +425,16 @@ class Solver
 
   # get an array of all naively impossible values to fill into the cell at base
   # index i in the grid. the impossible values are simply the values filled in
-  # to cells that share a row, col, or box with this cell. will return -1 if the
-  # cell already has a value.
+  # to cells that share a row, col, or box with this cell. if the cell already
+  # has a value, then will return all other values; this seems a little
+  # unnecessary, but turns out to make other things cleaner.
   naive_impossible_values: (i) ->
-    v = @grid.get i
-    if v > 0
-      return helpers.set_subtract([1..9], [v])
-
-    @grid.get_row_of(i).
-      concat(@grid.get_col_of(i)).
-        concat(@grid.get_box_of(i))
+    if @grid.get(i) > 0
+      return _.without([1..9], @grid.get(i))
+    else
+      @grid.get_row_of(i).
+        concat(@grid.get_col_of(i)).
+          concat(@grid.get_box_of(i))
 
   # gets a list of positions in a specified box where v can be filled in based
   # on naive_impossible_values. the box is specified either as (x,y) in
@@ -839,7 +904,9 @@ class Solver
   # box, and begin a loop through those values.
   ThinkInsideBoxLoop: (bs, bi) ->
     filled = @grid.get_box bs[bi]
-    vals = helpers.set_subtract([1..9], filled)
+    log "filled: " + filled
+    vals = _.without([1..9], filled...)
+    log "vals: " + vals
 
     if vals.length > 0
       # if there are unfilled values, then start iterating on them
