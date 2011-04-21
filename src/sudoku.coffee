@@ -84,24 +84,44 @@ num_pos = (xs) ->
   _.reduce(xs, ( (memo, x) -> if x > 0 then memo + 1 else memo ), 0)
 
 #### Cordinate Manipulation
+# There are three coordinate systems: base index, cartesian coordinates, and box
+# coordinates. These provide functions for converting between any two systems
+# (there are 6 such possible conversions).
+
+# Base index -> cartesian coordinates
+# i -> [x, y]
+base_to_cart = (i) ->
+  [Math.floor(i%9), Math.floor(i/9)]
+
+# Cartesian coordinates -> base index
+# x,y -> i
+cart_to_base = (x,y) ->
+  9*y + x
 
 # Cartesian coordinates -> box coordinates
 # x,y -> [b_x, b_y, s_x, s_y]
 cart_to_box = (x,y) ->
-  b_x = Math.floor x / 3 # which big column
-  b_y = Math.floor y / 3 # which big row
-  s_x = Math.floor x % 3 # which small column within b_x
-  s_y = Math.floor y % 3 # which small row within b_y
-
-  return [b_x, b_y, s_x, s_y]
+  [Math.floor(x/3), Math.floor(y/3), Math.floor(x%3), Math.floor(y%3)]
 
 # Box coordinates -> cartesian coordinates
 # b_x,b_y,s_x,s_y -> [x, y]
 box_to_cart = (b_x, b_y, s_x, s_y) ->
-  x = 3*b_x + s_x
-  y = 3*b_y + s_y
+  [3*b_x + s_x, 3*b_y + s_y]
 
-  return [x, y]
+# Base index -> box coordinates
+# i -> [b_x, b_y, s_x, s_y]
+base_to_box = (i) ->
+  cart_to_box base_to_cart(i)...
+
+# Box coordinates -> base index
+# b_x,b_y,s_x,s_y -> i
+box_to_base = (b_x, b_y, s_x, s_y) ->
+  cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
+
+
+
+
+
 
 ## ---------------------------------------------------------------------------
 ## Helpers for interactions with the DOM -------------------------------------
@@ -222,10 +242,10 @@ class Grid
     return [x,y]
 
   box_to_base: (b_x, b_y, s_x, s_y) ->
-    @cart_to_base box_to_cart(b_x, b_y, s_x, s_y)
+    cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
 
   base_to_box: (i) ->
-    cart_to_box((@base_to_cart i)...)
+    cart_to_box base_to_cart(i)...
 
   # access an element using base indices.
   get: (i) ->
@@ -233,11 +253,11 @@ class Grid
 
   # access an element using cartesian coordinates.
   get_c: (x,y) ->
-    @get @cart_to_base(x,y)
+    @get cart_to_base(x,y)
 
   # access an element using box coordinates
   get_b: (b_x, b_y, s_x, s_y) ->
-    @get @cart_to_base box_to_cart(b_x, b_y, s_x, s_y)
+    @get cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
 
   # set a cell specified with a base index i to a value v.
   set: (i, v) ->
@@ -245,7 +265,7 @@ class Grid
     @base_array[i] = v
 
     # change displayed value in HTML
-    [x,y] = @base_to_cart i
+    [x,y] = base_to_cart i
     if v is 0
       domhelpers.set_input_val(x,y,'')
     else
@@ -256,11 +276,11 @@ class Grid
 
   # set a cell specified by cartesian coordinates (x,y) to a value v.
   set_c: (x,y,v) ->
-    @set(@cart_to_base(x,y), v)
+    @set(cart_to_base(x,y), v)
 
   # set a cell specified by box coordinates (b_x,b_y,s_x,s_y) to a value v.
   set_b: (b_x, b_y, s_x, s_y) ->
-    @set(@cart_to_base box_to_cart(b_x, b_y, s_x, s_y), v)
+    @set(cart_to_base box_to_cart(b_x, b_y, s_x, s_y)..., v)
 
   # returns an array of all the values in a particular box, either specified
   # as a pair of coordinates or as an index (so the 6th box is the box
@@ -284,7 +304,7 @@ class Grid
     if y?
       cart = [x,y]
     else
-      cart = @base_to_cart x
+      cart = base_to_cart x
 
     [b_x, b_y, s_x, s_y] = cart_to_box cart...
     @get_box b_x, b_y
@@ -300,7 +320,7 @@ class Grid
     if y?
       @get_col x
     else
-      @get_col @base_to_cart(x)[0]
+      @get_col base_to_cart(x)[0]
 
   # get the array of values from particular col
   get_row: (y) ->
@@ -313,7 +333,7 @@ class Grid
     if y?
       @get_row y
     else
-      @get_row @base_to_cart(x)[1]
+      @get_row base_to_cart(x)[1]
 
   # determines if an array of numbers has one of each of the numbers 1..9
   # without any repeats. will be called on rows, columns, and boxes.
@@ -342,11 +362,11 @@ class Grid
 
   # return whether base idx i is in row r.
   idx_in_row: (i, r) ->
-    @base_to_cart(i)[1] == r
+    base_to_cart(i)[1] == r
 
   # return whether base idx i is in col r.
   idx_in_col: (i, c) ->
-    @base_to_cart(i)[0] == c
+    base_to_cart(i)[0] == c
 
   # return whether base idx i is in box b.
   idx_in_box: (i, b) ->
@@ -436,7 +456,7 @@ class Solver
   naive_possible_positions_in_row: (v, y) ->
     ps = []
     for x in [0..8]
-      i = @cart_to_base x,y
+      i = cart_to_base x,y
       ps.push(i) unless v in @naive_impossible_values(i)
 
     return ps
@@ -447,7 +467,7 @@ class Solver
   naive_possible_positions_in_col: (v, x) ->
     ps = []
     for y in [0..8]
-      i = @cart_to_base x,y
+      i = cart_to_base x,y
       ps.push(i) unless v in @naive_impossible_values(i)
 
     return ps
@@ -458,7 +478,7 @@ class Solver
 
     @occurrences[v] += 1
 
-    [x,y] = @grid.base_to_cart i
+    [x,y] = base_to_cart i
     [b_x,b_y,s_x,s_y] = @grid.base_to_box i
 
     fun =  ( =>
@@ -532,7 +552,7 @@ class Solver
       i = 0
       i += 1 until @grid.get(box_idxs[i]) == 0
 
-      log "Setting (#{@grid.base_to_cart(box_idxs[i])}) to #{v} because it's" +
+      log "Setting (#{base_to_cart(box_idxs[i])}) to #{v} because it's" +
       " box-obvious"
       @set(box_idxs[i], v, callback)
     else
@@ -540,11 +560,11 @@ class Solver
 
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
   set_c: (x,y,v, callback) ->
-    @set(@grid.cart_to_base(x,y), v, callback)
+    @set(cart_to_base(x,y), v, callback)
 
   # wrapper for @grid.set_b which will update the knowldege base if it needs to.
   set_b: (b_x, b_y, s_x, s_y, callback) ->
-    @set(@grid.cart_to_base box_to_cart(b_x, b_y, s_x, s_y), v, callback)
+    @set(cart_to_base box_to_cart(b_x, b_y, s_x, s_y)..., v, callback)
 
   # adds a restriction of value v to cell with base index i. returns whether the
   # restriction was useful information (ie, if the restriction wasn't already in
@@ -603,12 +623,12 @@ class Solver
   # if the base indices are all in the same row, then returns that row;
   # otherwise returns false.
   same_row: (idxs) ->
-    first_row = @grid.base_to_cart(idxs[0])[1]
+    first_row = base_to_cart(idxs[0])[1]
     idxs = _.rest(idxs)
 
     for idx in idxs
       # return false if one of the rows doesn't match the first.
-      return false if @grid.base_to_cart(idx)[1] != first_row
+      return false if base_to_cart(idx)[1] != first_row
 
     # return true if they all match the first.
     return first_row
@@ -616,12 +636,12 @@ class Solver
   # if the base indices are all in the same column, then returns that col;
   # otherwise returns false.
   same_col: (idxs) ->
-    first_col = @grid.base_to_cart(idxs[0])[0]
+    first_col = base_to_cart(idxs[0])[0]
     idxs = _.rest(idxs)
 
     for idx in idxs
       # return false if one of the cols doesn't match the first.
-      return false if @grid.base_to_cart(idx)[0] != first_col
+      return false if base_to_cart(idx)[0] != first_col
 
     # return true if they all match the first
     return first_col
@@ -720,7 +740,7 @@ class Solver
       delay = STRAT_DELAY
 
     if ps.length == 1
-      log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by GridScan"
+      log "Setting (#{base_to_cart ps[0]}) to #{v} by GridScan"
       @set(ps[0], v, =>
         @updated = true
         delay += FILL_DELAY
@@ -823,7 +843,7 @@ class Solver
 
     switch ps.length
       when 1
-        log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by SmartGridScan"
+        log "Setting (#{base_to_cart ps[0]}) to #{v} by SmartGridScan"
         @set(ps[0], v, =>
           @updated = true
           delay += FILL_DELAY)
@@ -834,7 +854,7 @@ class Solver
 
           y = @same_row(ps)
           for x in [0..8]
-            i = @grid.cart_to_base(x,y)
+            i = cart_to_base(x,y)
             @add_restriction(i,v) unless @grid.idx_in_box(i,b) or @grid.get(i)!=0
         else if @same_col(ps)
           log "Refining knowledge base using SmartGridScan"
@@ -842,7 +862,7 @@ class Solver
 
           x = @same_col(ps)
           for y in [0..8]
-            i = @grid.cart_to_base(x,y)
+            i = cart_to_base(x,y)
             @add_restriction(i,v) unless @grid.idx_in_box(i,b) or @grid.get(i)!=0
 
     setTimeout(callback, delay)
@@ -928,7 +948,7 @@ class Solver
       delay = STRAT_DELAY
 
     if ps.length == 1
-      log "Setting (#{@grid.base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
+      log "Setting (#{base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
       @set(ps[0], v, =>
         @updated = true
         delay += FILL_DELAY
