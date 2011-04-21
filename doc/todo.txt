@@ -16,6 +16,9 @@
   
 - Refactor to store a sequence of steps, and then animate the steps; avoid all
   the callback bs.
+  
+- Display animation effects of the stuff that's going on: ie, when looking at a
+  box, then light up that box?
 
 
 ## Functions ##

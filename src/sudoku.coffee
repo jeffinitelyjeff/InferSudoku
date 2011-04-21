@@ -66,7 +66,7 @@
 #                     in.
 
 
-#### Settings
+## Settings
 
 # Delay after filling in cells.
 FILL_DELAY = 50
@@ -77,13 +77,13 @@ STRAT_DELAY = 100
 # Maximum number of iterations to try for solve loop.
 max_solve_iter = 10
 
-#### Basic Helper Functions
+## Helper Functions
 
 # Count the number of elements of an array which are greater than 0.
 num_pos = (xs) ->
   _.reduce(xs, ( (memo, x) -> if x > 0 then memo + 1 else memo ), 0)
 
-#### Cordinate Manipulation
+### Cordinate Manipulation ###
 # There are three coordinate systems: base index, cartesian coordinates, and box
 # coordinates. These provide functions for converting between any two systems
 # (there are 6 such possible conversions).
@@ -118,12 +118,22 @@ base_to_box = (i) ->
 box_to_base = (b_x, b_y, s_x, s_y) ->
   cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
 
-#### DOM Interaction Functions
+### DOM Interaction Functions ###
+# These are functions that mainly use JQuery to interact with the DOM either by
+# gathering input, setting cell values on the display, or affecting other parts
+# of the DOM necessary for animation.
 
 dom =
 
-  ### JQuery selectors.
+  #### JQuery Selectors ####
 
+  # Returns a selector for the cell specified in cartesian coordinates.
+  sel: (x, y) ->
+    [b_x, b_y, s_x, s_y] = cart_to_box x,y
+    return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
+
+  # Returns a selector for all the cells in the same row as the cell specified
+  # in cartesian coordinates.
   sel_row: (x,y) ->
     [b_x, b_y, s_x, s_y] = cart_to_box x, y
     s = ""
@@ -132,6 +142,8 @@ dom =
         s += ".gr#{b_y} .gc#{i} .r#{s_y} .c#{j}, " unless i == b_x and j == s_x
     return s
 
+  # Returns a selector for all the cells in the same col as the cell specified
+  # in cartesian coordinates.
   sel_col: (x,y) ->
     [b_x, b_y, s_x, s_y] = cart_to_box x, y
     s = ""
@@ -140,6 +152,8 @@ dom =
         s += ".gr#{i} .gc#{b_x} .r#{j} .c#{s_x}, " unless i == b_y and j == s_y
     return s
 
+  # Returns a selector for all the cells in the same box as the cell specified
+  # in cartesian coordinates.
   sel_box: (x,y) ->
     [b_x, b_y, s_x, s_y] = cart_to_box x, y
     s = ""
@@ -148,10 +162,22 @@ dom =
         s += ".gr#{b_y} .gc#{b_x} .r#{j} .c#{i}, " unless i == s_x and j == s_y
     return s
 
-  sel: (x, y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_box x,y
-    return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
+  #### DOM Accessors ####
 
+  # Get the value in the input HTML element corresponding to the cell specified
+  # in cartesian coordinates.
+  get_input_val: (x, y) ->
+    $(@sel(x,y) + " .num").val()
+
+  #### DOM Mutators ####
+
+  # Set the value in the input HTML element corresponding to the cell specified
+  # in cartesian coordinates.
+  set_input_val: (x, y, v) ->
+    $(@sel(x,y) + " .num").val(v)
+
+  # Assigns hover callbacks to the cell specified in cartesian coordinates which
+  # highlight the cells in the same row, col, and box as the specified cell.
   color_adjacent: (x,y) ->
     fn1 = =>
       $(@sel_box(x,y)).addClass("adj-box")
@@ -163,22 +189,14 @@ dom =
       $(@sel_row(x,y)).removeClass("adj-row")
     $(@sel(x,y)).hover(fn1, fn2)
 
+  # Assigns hover callbacks to the cell specified in cartesian coordinates which
+  # updates the position label with the cell's coordinates.
   display_pos: (x,y) ->
     fn = ->
       $("#pos-label").html("(#{x},#{y})")
     $(@sel(x,y)).hover(fn)
 
-  # a low-level function to get the value of the input HTML element at the
-  # specified position in the Sudoku grid.
-  get_input_val: (x, y) ->
-    $(@sel(x,y) + " .num").val()
-
-  # set_input_val(x,y,v) is a low-level function to set the value of the input
-  # HTML element at the specified position in the Sudoku grid.
-  set_input_val: (x, y, v) ->
-    $(@sel(x,y) + " .num").val(v)
-
-  # informs the display of a new display.
+  # Updates the display with a new strategy.
   announce_strategy: (s) ->
     $("#strat").html(s)
 
@@ -215,7 +233,7 @@ class Grid
     a = []
     for j in [0..8]
       for i in [0..8]
-        v = domhelpers.get_input_val i, j
+        v = dom.get_input_val i, j
         a.push if v is '' then 0 else parseInt(v)
     return a
 
@@ -239,11 +257,11 @@ class Grid
     # change displayed value in HTML
     [x,y] = base_to_cart i
     if v is 0
-      domhelpers.set_input_val(x,y,'')
+      dom.set_input_val(x,y,'')
     else
-      domhelpers.set_input_val(x,y,v)
-      $(domhelpers.sel(x,y)).addClass('new')
-      $(domhelpers.sel(x,y)).
+      dom.set_input_val(x,y,v)
+      $(dom.sel(x,y)).addClass('new')
+      $(dom.sel(x,y)).
         addClass('highlight', 500).delay(500).removeClass('highlight', 2000)
 
   # set a cell specified by cartesian coordinates (x,y) to a value v.
@@ -944,17 +962,17 @@ class Solver
   choose_strategy: ->
     if @should_gridscan()
       @prev_results.push {strat: "GridScan"}
-      domhelpers.announce_strategy "GridScan"
+      dom.announce_strategy "GridScan"
       return @GridScan()
 
     if @should_thinkinsidethebox()
       @prev_results.push {strat: "ThinkInsideTheBox"}
-      domhelpers.announce_strategy "ThinkInside<br />TheBox"
+      dom.announce_strategy "ThinkInside<br />TheBox"
       return @ThinkInsideTheBox()
 
     if @should_smartgridscan()
       @prev_results.push {strat: "SmartGridSCan"}
-      domhelpers.announce_strategy "SmartGridScan"
+      dom.announce_strategy "SmartGridScan"
       return @SmartGridScan()
 
     # FIXME
@@ -1051,8 +1069,8 @@ $(document).ready ->
 
   for j in [0..8]
     for i in [0..8]
-      domhelpers.color_adjacent(i,j)
-      domhelpers.display_pos(i,j)
+      dom.color_adjacent(i,j)
+      dom.display_pos(i,j)
 
 
   inject = ->
@@ -1068,9 +1086,9 @@ $(document).ready ->
 
       for v in cols
         if v is '.'
-          domhelpers.set_input_val(c,r,'')
+          dom.set_input_val(c,r,'')
         else
-          domhelpers.set_input_val(c,r,v)
+          dom.set_input_val(c,r,v)
         c += 1
 
       r += 1

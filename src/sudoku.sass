@@ -47,6 +47,7 @@ $height: 355px
   color: #00FF00
   text-shadow: 1px 1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, -1px -1px 0 #000
   display: none
+  z-index: 1
 
 #container
   height: $height
@@ -68,6 +69,9 @@ $height: 355px
   #input-b
     width: 100%
 
+  #strat-select
+    font-size: 11px
+
 #main-col
   float: left
   width: $main-col-width
@@ -76,6 +80,7 @@ $height: 355px
   margin-right: $col-margin
 
   #grid
+    z-index: -1
     margin-bottom: 10px
   
   #solve-b
