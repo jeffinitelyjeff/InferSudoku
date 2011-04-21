@@ -88,38 +88,35 @@ num_pos = (xs) ->
 # coordinates. These provide functions for converting between any two systems
 # (there are 6 such possible conversions).
 
-# Base index -> cartesian coordinates
-# i -> [x, y]
+#     Base index -> cartesian coordinates
+#     i -> [x, y]
 base_to_cart = (i) ->
   [Math.floor(i%9), Math.floor(i/9)]
 
-# Cartesian coordinates -> base index
-# x,y -> i
+#     Cartesian coordinates -> base index
+#     x,y -> i
 cart_to_base = (x,y) ->
   9*y + x
 
-# Cartesian coordinates -> box coordinates
-# x,y -> [b_x, b_y, s_x, s_y]
+#     Cartesian coordinates -> box coordinates
+#     x,y -> [b_x, b_y, s_x, s_y]
 cart_to_box = (x,y) ->
   [Math.floor(x/3), Math.floor(y/3), Math.floor(x%3), Math.floor(y%3)]
 
-# Box coordinates -> cartesian coordinates
-# b_x,b_y,s_x,s_y -> [x, y]
+#     Box coordinates -> cartesian coordinates
+#     b_x,b_y,s_x,s_y -> [x, y]
 box_to_cart = (b_x, b_y, s_x, s_y) ->
   [3*b_x + s_x, 3*b_y + s_y]
 
-# Base index -> box coordinates
-# i -> [b_x, b_y, s_x, s_y]
+#     Base index -> box coordinates
+#     i -> [b_x, b_y, s_x, s_y]
 base_to_box = (i) ->
   cart_to_box base_to_cart(i)...
 
-# Box coordinates -> base index
-# b_x,b_y,s_x,s_y -> i
+#     Box coordinates -> base index
+#     b_x,b_y,s_x,s_y -> i
 box_to_base = (b_x, b_y, s_x, s_y) ->
   cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
-
-
-
 
 
 
@@ -224,28 +221,6 @@ class Grid
         v = domhelpers.get_input_val i, j
         a.push if v is '' then 0 else parseInt(v)
     return a
-
-  # cartesian coordinates -> base index
-  # x,y -> i
-  cart_to_base: (x,y) ->
-    unless y?
-      y = x[1]
-      x = x[0]
-
-    9*y + x
-
-  # base index -> cartesian coordinates
-  # i -> [x,y]
-  base_to_cart: (i) ->
-    x = Math.floor i % 9
-    y = Math.floor i / 9
-    return [x,y]
-
-  box_to_base: (b_x, b_y, s_x, s_y) ->
-    cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
-
-  base_to_box: (i) ->
-    cart_to_box base_to_cart(i)...
 
   # access an element using base indices.
   get: (i) ->
@@ -370,7 +345,7 @@ class Grid
 
   # return whether base idx i is in box b.
   idx_in_box: (i, b) ->
-    [b_x, b_y] = @base_to_box i
+    [b_x, b_y] = base_to_box i
     return 3*b_y + b_x == b
 
 
@@ -445,7 +420,7 @@ class Solver
     ps = []
     for b in [0..2]
       for a in [0..2]
-        i = @grid.box_to_base x,y,a,b
+        i = box_to_base x,y,a,b
         ps.push(i) unless v in @naive_impossible_values(i)
 
     return ps
@@ -479,7 +454,7 @@ class Solver
     @occurrences[v] += 1
 
     [x,y] = base_to_cart i
-    [b_x,b_y,s_x,s_y] = @grid.base_to_box i
+    [b_x,b_y,s_x,s_y] = base_to_box i
 
     fun =  ( =>
       @fill_obvious_row(y, =>
@@ -546,7 +521,7 @@ class Solver
       box_idxs = []
       for j in [0..2]
         for k in [0..2]
-          box_idxs.push @grid.box_to_base(b_x, b_y, k, j)
+          box_idxs.push box_to_base(b_x, b_y, k, j)
 
       # get the position missing it.
       i = 0
@@ -649,12 +624,12 @@ class Solver
   # if the base indices are all in the same box, then returns that box;
   # otherwise returns false.
   same_box: (idxs) ->
-    first_box = @grid.base_to_box(idx[0])
+    first_box = base_to_box(idx[0])
     idxs = _.rest(idxs)
 
     for idx in idxs
       # return false if one of the boxes doesn't match the first.
-      box = @grid.base_to_box(idx)
+      box = base_to_box(idx)
       return false if box[0] != first_box[0] or box[1] != first_box[1]
 
     # return true if they all match the first
