@@ -79,6 +79,13 @@ max_solve_iter = 10
 
 ## Helper Functions
 
+# Logging
+log = (s) ->
+  t = $('#stderr')
+  t.val(t.val() + s + '\n')
+  t.scrollTop(9999999)
+  return s
+
 # Count the number of elements of an array which are greater than 0.
 num_pos = (xs) ->
   _.reduce(xs, ( (memo, x) -> if x > 0 then memo + 1 else memo ), 0)
@@ -200,61 +207,37 @@ dom =
   announce_strategy: (s) ->
     $("#strat").html(s)
 
-
-## ----------------------------------------------------------------------------
-## Low-level Utility Functions ------------------------------------------------
-
-## Logging.
-
-log = (s) ->
-  t = $('#stderr')
-  t.val(t.val() + s + '\n')
-  t.scrollTop(9999999)
-  return s
-
-
-
-
-
-
-## ---------------------------------------------------------------------------
-## Grid Class ----------------------------------------------------------------
+## Grid
 
 class Grid
   constructor: ->
-    # cell values
     @base_array = @collect_input()
 
-  # UTILITY METHODS ----------------------------------------------------------
-  # --------------------------------------------------------------------------
+  ### Accesssor Methods ###
 
-  # collect the values of the input elements and return them in a 1D array.
-  collect_input: ->
-    a = []
-    for j in [0..8]
-      for i in [0..8]
-        v = dom.get_input_val i, j
-        a.push if v is '' then 0 else parseInt(v)
-    return a
-
-  # access an element using base indices.
+  # Access an element from the grid by a base index. Throws an error if an
+  # invalid input is specified.
   get: (i) ->
+    throw "Invalid base index" if i < 0 or i > 80
     @base_array[i]
 
-  # access an element using cartesian coordinates.
+  # Access an element from the grid using cartesian coordinates.
   get_c: (x,y) ->
     @get cart_to_base(x,y)
 
-  # access an element using box coordinates
+  # Access an element from the grid using box coordinates.
   get_b: (b_x, b_y, s_x, s_y) ->
     @get cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
 
-  # set a cell specified with a base index i to a value v.
+  ### Mutator Methods ###
+
+  # Set a cell specified by a base index to a value. Also handles animation to
+  # highlight the cell.
   set: (i, v) ->
-    # store in internal representation
+    # store in Grid's internal representation.
     @base_array[i] = v
 
-    # change displayed value in HTML
+    # change value in DOM and highlight if setting to a non-blank space.
     [x,y] = base_to_cart i
     if v is 0
       dom.set_input_val(x,y,'')
@@ -264,69 +247,27 @@ class Grid
       $(dom.sel(x,y)).
         addClass('highlight', 500).delay(500).removeClass('highlight', 2000)
 
-  # set a cell specified by cartesian coordinates (x,y) to a value v.
+  # Set a cell specified by cartesian coordinates to a value.
   set_c: (x,y,v) ->
     @set(cart_to_base(x,y), v)
 
-  # set a cell specified by box coordinates (b_x,b_y,s_x,s_y) to a value v.
+  # Set a cell specified by box coordinates to a value.
   set_b: (b_x, b_y, s_x, s_y) ->
     @set(cart_to_base box_to_cart(b_x, b_y, s_x, s_y)..., v)
 
-  # returns an array of all the values in a particular box, either specified
-  # as a pair of coordinates or as an index (so the 6th box is the box
-  # with b_x=0, b_y=2).
-  get_box: (x, y) ->
-    unless y?
-      y = Math.floor x / 3
-      x = Math.floor x % 3
+  ### Utility Methods ###
 
+  # Collect the inputted cell values from the DOM.
+  collect_input: ->
     a = []
-    for j in [0..2]
-      for i in [0..2]
-        a.push @get_b(x, y, i, j)
-
+    for j in [0..8]
+      for i in [0..8]
+        v = dom.get_input_val i, j
+        a.push if v is '' then 0 else parseInt(v)
     return a
 
-  # returns the array of all values in the box which this cell (specified in
-  # cartesian coordinates if two parameters are passed, in a base index if
-  # only one paramater is passed) occupies.
-  get_box_of: (x, y) ->
-    if y?
-      cart = [x,y]
-    else
-      cart = base_to_cart x
-
-    [b_x, b_y, s_x, s_y] = cart_to_box cart...
-    @get_box b_x, b_y
-
-  # gets the arroy of values from particular row
-  get_col: (x) ->
-    (@get_c(x,i) for i in [0..8])
-
-  # returns the array of all values in the col which this cell (specified in
-  # cartesian coordinates if two parameters are passed, or specified in a base
-  # index if only one paramater is passed) occupies.
-  get_col_of: (x, y) ->
-    if y?
-      @get_col x
-    else
-      @get_col base_to_cart(x)[0]
-
-  # get the array of values from particular col
-  get_row: (y) ->
-    (@get_c(i,y) for i in [0..8])
-
-  # returns the array of all values in the row which this cell occupies
-  # (specified in cartesian coordinatse if two parameters are passed, or
-  # specified in a base index if only one parameter is passed).
-  get_row_of: (x, y) ->
-    if y?
-      @get_row y
-    else
-      @get_row base_to_cart(x)[1]
-
-  # determines if an array of numbers has one of each of the numbers 1..9
-  # without any repeats. will be called on rows, columns, and boxes.
+  # Determines if an array of numbers has one of each of the value 1..9 without
+  # any repeats.
   valid_array: (xs) ->
     hits = []
 
@@ -338,30 +279,109 @@ class Grid
 
     return true
 
-  # determine if the entire grid is valid according to the three satisfaction
-  # rules:
-  #   - each row is unique
-  #   - each col is unique
-  #   - each box is unique
-  is_valid: ->
+  # Determine if the grid is solved.
+  is_solved: ->
     for i in [0..8]
-      return false unless @valid_array @get_col i
-      return false unless @valid_array @get_row i
-      return false unless @valid_array @get_box i
+      return false unless @valid_array @get_col_vals i
+      return false unless @valid_array @get_row_vals i
+      return false unless @valid_array @get_box_vals i
     return true
 
-  # return whether base idx i is in row r.
+  # Return whether base index i is in row r.
   idx_in_row: (i, r) ->
     base_to_cart(i)[1] == r
 
-  # return whether base idx i is in col r.
+  # Return whether base index i is in col c.
   idx_in_col: (i, c) ->
     base_to_cart(i)[0] == c
 
-  # return whether base idx i is in box b.
+  # Return whether base index i is in box b.
   idx_in_box: (i, b) ->
     [b_x, b_y] = base_to_box i
     return 3*b_y + b_x == b
+
+  ### Convenient Advanced Accessors ###
+
+  # Returns an array of the indices of the cells in a specified box. The box can
+  # be specified either in cartesian coordinates (of range [0..2]x[0..2]) or
+  # indexed 0-8.
+  get_box_idxs: (x, y) ->
+    unless y?
+      y = Math.floor(x/3)
+      x = Math.floor(x%3)
+
+    a = []
+    for j in [0..2]
+      for i in [0..2]
+        a.push box_to_base x,y,i,j
+    return a
+
+  # Returns the array of all the indices of the cells in the box which the
+  # specified cell occupies. The cell can be specified either in cartesian
+  # coordinates or as a base index.
+  get_box_idxs_of: (x,y) ->
+    if y?
+      x = cart_to_base x,y
+
+    [b_x, b_y, s_x, s_y] = base_to_box x
+    @get_box_idxs b_x, b_y
+
+  # Returns an array of all the values in a specified box. The box can be
+  # specified either in cartesian coordinates (of range [0..2]x[0..2]) or
+  # indexed 0-8.
+  get_box_vals: (x, y) ->
+    (@get(i) for i in @get_box_idxs(x,y))
+
+  # Returns the array of all the values in the box which the specified cell
+  # occupies. The cell can be specified either in cartesian coordinates or as a
+  # base index.
+  get_box_vals_of: (x, y) ->
+    (@get(i) for i in @get_box_idxs_of(x,y))
+
+  # Returns an array of all the indices of the cells in a specified col.
+  get_col_idxs: (x) ->
+    (cart_to_base(x,y) for y in [0..8])
+
+  # Returns the array of all indices of the cells in the col which this cell
+  # occupies. The cell can be specified either in cartesian coordinates or as
+  # a base index.
+  get_col_idxs_of: (x, y) ->
+    if y?
+      @get_col_idxs x
+    else
+      @get_col_idxs base_to_cart(x)[0]
+
+  # Returns an array of all the values in a specified col.
+  get_col_vals: (x) ->
+    (@get(i) for i in @get_col_idxs(x))
+
+  # Returns the array of all values in the col which this cell occupies. The
+  # cell can be specified either in cartesian coordinates or as a base index.
+  get_col_vals_of: (x, y) ->
+    (@get(i) for i in @get_col_idxs_of(x,y))
+
+  # Returns an array of all the indices of the cells in a specified row.
+  get_row_idxs: (y) ->
+    (cart_to_base(x,y) for x in [0..8])
+
+  # Returns the array of all indices of the cells in the row which this cell
+  # occupies. The cell can be specified either in cartesian coordinates or as a
+  # base index.
+  get_row_idxs_of: (x, y) ->
+    if y?
+      @get_row_idxs y
+    else
+      @get_row_idxs base_to_cart(x)[1]
+
+  # Returns an array of all the values in a specified row.
+  get_row_vals: (y) ->
+    (@get(i) for i in @get_row_idxs(y))
+
+  # Returns the array of all values in the row which this cell occupies. The
+  # cell can be specified either in cartesian coordinates or as a base index.
+  get_row_vals_of: (x, y) ->
+    (@get(i) for i in @get_row_idxs_of(x,y))
+
 
 
 
@@ -419,9 +439,9 @@ class Solver
     if @grid.get(i) > 0
       return _.without([1..9], @grid.get(i))
     else
-      @grid.get_row_of(i).
-        concat(@grid.get_col_of(i)).
-          concat(@grid.get_box_of(i))
+      @grid.get_row_vals_of(i).
+        concat(@grid.get_col_vals_of(i)).
+          concat(@grid.get_box_vals_of(i))
 
   # gets a list of positions in a specified box where v can be filled in based
   # on naive_impossible_values. the box is specified either as (x,y) in
@@ -480,7 +500,7 @@ class Solver
 
   # if the specified row only has one value missing, then will fill in that value.
   fill_obvious_row: (y, callback) ->
-    vals = @grid.get_row y
+    vals = @grid.get_row_vals y
 
     if num_pos(vals) == 8
       # get the one missing value
@@ -499,7 +519,7 @@ class Solver
   # if the specified col only has one value missing, then will fill in that
   # value.
   fill_obvious_col: (x, callback) ->
-    vals = @grid.get_col x
+    vals = @grid.get_col_vals x
 
     if num_pos(vals) == 8
       # get the one missing value
@@ -525,7 +545,7 @@ class Solver
       b_x = Math.floor(b_x % 3)
       b_y = Math.floor(b_y / 3)
 
-    vals = @grid.get_box b
+    vals = @grid.get_box_vals b
 
     if num_pos(vals) == 8
       # get the one missing value
@@ -685,7 +705,7 @@ class Solver
     # get the boxes which don't contain v, which are the only ones we're
     # considering for the strategy
     for b in [0..8]
-      boxes.push(b) if v not in @grid.get_box(b)
+      boxes.push(b) if v not in @grid.get_box_vals(b)
 
     if boxes.length > 0
       # if there are possible boxes, then start iterating on them.
@@ -784,7 +804,7 @@ class Solver
     # get the boxes which don't contain v, which are the only ones we're
     # considering for this startegy.
     for b in [0..8]
-      boxes.push(b) if v not in @grid.get_box(b)
+      boxes.push(b) if v not in @grid.get_box_vals(b)
 
     if boxes.length > 0
       # if there are possible boxes, then start iterating on them.
@@ -838,22 +858,21 @@ class Solver
           @updated = true
           delay += FILL_DELAY)
       when 2,3
+        just_updated = false
         if @same_row(ps)
-          log "Refining knowledge base using SmartGridScan"
-          @updated = true
-
           y = @same_row(ps)
           for x in [0..8]
             i = cart_to_base(x,y)
-            @add_restriction(i,v) unless @grid.idx_in_box(i,b) or @grid.get(i)!=0
+            unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
+              just_updated = @add_restriction(i,v)
         else if @same_col(ps)
-          log "Refining knowledge base using SmartGridScan"
-          @updated = true
-
           x = @same_col(ps)
           for y in [0..8]
             i = cart_to_base(x,y)
-            @add_restriction(i,v) unless @grid.idx_in_box(i,b) or @grid.get(i)!=0
+            unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
+              just_updated = @add_restriction(i,v)
+        log "Refining knowldege base using SmartGridScan" if just_updated
+        @updated ||= just_updated
 
     setTimeout(callback, delay)
 
@@ -890,10 +909,8 @@ class Solver
   # Get the list of values which have not yet been filled in within the current
   # box, and begin a loop through those values.
   ThinkInsideBoxLoop: (bs, bi) ->
-    filled = @grid.get_box bs[bi]
-    log "filled: " + filled
+    filled = @grid.get_box_vals bs[bi]
     vals = _.without([1..9], filled...)
-    log "vals: " + vals
 
     if vals.length > 0
       # if there are unfilled values, then start iterating on them
@@ -991,7 +1008,9 @@ class Solver
     log "iteration #{@solve_iter}"
 
     # done if the grid is complete or we've done too many iterations
-    done = @grid.is_valid() or @solve_iter > max_solve_iter
+    done = @grid.is_solved() or @solve_iter > max_solve_iter
+
+    log "tested if done"
 
     if done
       @solve_loop_done()
@@ -1001,7 +1020,7 @@ class Solver
 
 
   solve_loop_done: ->
-    log if @grid.is_valid() then "Grid solved! :)" else "Grid not solved :("
+    log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
 
     $("#strat").animate(`{opacity: 0.0, top: '+=75px'}`, 500, 'easeOutQuad', ->
       $("#solve-b").animate(`{opacity: 1.0, top: '-=50px'}`, 500, 'easeInQuad', ->
