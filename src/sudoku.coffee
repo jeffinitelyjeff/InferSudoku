@@ -321,15 +321,28 @@ class Grid
 
 class Solver
   constructor: (@grid) ->
-    # Cell restrictions will contain info gathered about what value a cell can
-    # or cannot be. Each cell restriction will be an object, with a 'type' field
-    # either set to "cant" or "must" to specify which kind of restriction info
-    # it is storing and with a 'vals' field that is an array of values which the
-    # cell either can or cannot be (again, depending on the value of the 'type'
-    # field).
-    @cell_restrictions = []
-    make_restriction = -> [0,0,0,0,0,0,0,0,0,0]
-    @cell_restrictions = (make_restriction() for i in [0...81])
+
+    # A Solver is constructed once every time the solve button is hit, so all
+    # the relevant parameters are set to their defaults here.
+
+    # Restrictions are indexed first by cell index and then by value
+    # restricted. So @restrictions[0] is the array of restricted values for cell
+    # 0, and @restrictions[10][5] is a 1 if cell 10 is restricted from being value
+    # 5 or is a 0 if cell 10 is not restricted from being value 5.
+    @restrictions = []
+    make_empty_restriction = -> [0,0,0,0,0,0,0,0,0,0]
+    @restrictions = (make_empty_restriction() for i in [0...81])
+
+    # Clusters are indexed first by type of group (row = 0, col = 1, box = 2),
+    # then by index of that group (0-8), then by value (1-9), then by positions
+    # (0-8), with a 0 indicating not in the cluster and 1 indicating in the
+    # cluster. For example, if @clusters[1][3][2] were [1,1,1,0,0,0,0,0,0], then
+    # the 4th row would need to have value 2 in the first 3 spots.
+    @clusters = []
+    make_empty_cluster = -> [0,0,0,0,0,0,0,0,0]
+    make_emtpy_cluster_vals = (make_empty_cluster() for i in [1..9])
+    make_empty_cluster_groups = (make_empty_cluster_vals() for i in [0..8])
+    @clusters = (make_empty_cluster_groups() for i in [0..2])
 
     @solve_iter = 0
 
@@ -338,6 +351,9 @@ class Solver
     for v in [1..9]
       for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
+
+    @prev_results = []
+    @updated = true
 
   prev_strats: ->
     strats = (@prev_results[i].strat for i in [0...@prev_results.length])
@@ -495,8 +511,8 @@ class Solver
     # we should only be adding restrictions to cells which aren't set yet.
     throw "Error" if @grid.get(i) != 0
 
-    prev = @cell_restrictions[i][v]
-    @cell_restrictions[i][v] = 1
+    prev = @restrictions[i][v]
+    @restrictions[i][v] = 1
     return prev == 0
 
 
@@ -509,7 +525,7 @@ class Solver
   # no info has yet been storetd for the cell ("none"), and a "vals" array with
   # the list of values either possible or impossle.
   get_restrictions: (i) ->
-    r = @cell_restrictions[i]
+    r = @restrictions[i]
     n = helpers.num_pos r
 
     if n == 0
@@ -938,9 +954,6 @@ class Solver
       $("#solve-b, #input-b, input.num").attr('disabled', false)))
 
   solve: ->
-    @prev_results = []
-    @updated = true
-
     @solve_loop()
 
 

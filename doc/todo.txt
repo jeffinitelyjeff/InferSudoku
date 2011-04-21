@@ -6,6 +6,12 @@
 
 # Things to Implement #
 
+- Need new system for restrictions. 
+  + Restrictions: cell I cannot be values V1, V2, ..., Vn.
+  + Clusters: for row/col/box I, value V can only be in positions P1, P2, ...,
+  Pn.
+
+
 ## Functions ##
 
 - Give weights to the strategies based on how successful they've been so far,
