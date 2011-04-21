@@ -83,11 +83,6 @@ settings =
 
 helpers =
 
-  # Test if two arrays are equal.
-  eq: (xs, ys) ->
-    z = _.zip(xs, ys)
-    _.reduce(z,( (memo, pair) -> memo and pair[0] == pair[1]), true)
-
   # Count the number of elements of an array which
   # count the number of elements of an array which are greater than 0. this
   # will be used for a grid to see how many elements have been filled into
