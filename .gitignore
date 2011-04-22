@@ -4,3 +4,7 @@ jquery*
 .emacs*
 .sass-cache/*
 */.sass-cache/*
+docs/*.html
+#*
+*#
+.#*
