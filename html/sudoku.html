@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>Sudoku Solver for COMP352!</title>
-    <link rel="stylesheet" type="text/css" href="sudoku.css" />
+    <link rel="stylesheet" type="text/css" href="../css/sudoku.css" />
     <script type="text/javascript" src="../lib/jquery-1.5.2.min.js"></script>
     <script type="text/javascript" src="../lib/jquery-ui-1.8.11.custom.min.js"></script>
     <script type="text/javascript" src="../lib/underscore.js"></script>
@@ -15,30 +15,126 @@
     <script type="text/javascript" src="../js/sudoku.js"></script>
   </head>
   <body><div id="container">
-    <pre id="pos-label">(X,X)</pre>
-      
     <div id="input-col">
       <select id="puzzle-select" name="puzzle-select">
-        <option>easy</option>
-        <option>hard</option>
-        <option>evil</option>
+        <option>easy1</option>
+        <option>easy2</option>
+        <option>easy3</option>
+        <option>easy4</option>
+        <option>easy5</option>
+        <option>easy6</option>
+        <option>easy7</option>
+        <option>easy8</option>
+        <option>easy9</option>
+        <option>easy10</option>
+        <option>easy11</option>
+        <option>easy12</option>
+        <option>easy13</option>
+        <option>easy14</option>
+        <option>easy15</option>
+        <option>easy16</option>
+        <option>easy17</option>
+        <option>easy18</option>
+        <option>easy19</option>
+        <option>easy20</option>
+        <option>easy21</option>
+        <option>easy22</option>
+        <option>easy23</option>
+        <option>easy24</option>
+        <option>easy25</option>
+        <option>medium1</option>
+        <option>medium2</option>
+        <option>medium3</option>
+        <option>medium4</option>
+        <option>medium5</option>
+        <option>medium6</option>
+        <option>medium7</option>
+        <option>medium8</option>
+        <option>medium9</option>
+        <option>medium10</option>
+        <option>medium11</option>
+        <option>medium12</option>
+        <option>medium13</option>
+        <option>medium14</option>
+        <option>medium15</option>
+        <option>medium16</option>
+        <option>medium17</option>
+        <option>medium18</option>
+        <option>medium19</option>
+        <option>medium20</option>
+        <option>medium21</option>
+        <option>medium22</option>
+        <option>medium23</option>
+        <option>medium24</option>
+        <option>medium25</option>
+        <option>hard1</option>
+        <option>hard2</option>
+        <option>hard3</option>
+        <option>hard4</option>
+        <option>hard5</option>
+        <option>hard6</option>
+        <option>hard7</option>
+        <option>hard8</option>
+        <option>hard9</option>
+        <option>hard10</option>
+        <option>hard11</option>
+        <option>hard12</option>
+        <option>hard13</option>
+        <option>hard14</option>
+        <option>hard15</option>
+        <option>hard16</option>
+        <option>hard17</option>
+        <option>hard18</option>
+        <option>hard19</option>
+        <option>hard20</option>
+        <option>hard21</option>
+        <option>hard22</option>
+        <option>hard23</option>
+        <option>hard24</option>
+        <option>hard25</option>
+        <option>evil1</option>
+        <option>evil2</option>
+        <option>evil3</option>
+        <option>evil4</option>
+        <option>evil5</option>
+        <option>evil6</option>
+        <option>evil7</option>
+        <option>evil8</option>
+        <option>evil9</option>
+        <option>evil10</option>
+        <option>evil11</option>
+        <option>evil12</option>
+        <option>evil13</option>
+        <option>evil14</option>
+        <option>evil15</option>
+        <option>evil16</option>
+        <option>evil17</option>
+        <option>evil18</option>
+        <option>evil19</option>
+        <option>evil20</option>
+        <option>evil21</option>
+        <option>evil22</option>
+        <option>evil23</option>
+        <option>evil24</option>
+        <option>evil25</option>
       </select><br />
       <textarea id="stdin"></textarea> <br />
       <input id="input-b" type="submit" value="Input" />
       <div id="strat-select">
         <input type=checkbox name="strat-sel" id="gridscan-box" />
-        <label for="gridscan-box">GridScan</label><br />
+        <label for="gridscan-box">Grid Scan</label><br />
         <input type=checkbox name="strat-sel" id="thinkinside-box" />
-        <label for="thinkinside-box">ThinkInside</label><br />
+        <label for="thinkinside-box">Think In</label><br />
         <input type=checkbox name="strat-sel" id="smartgrid-box" />
-        <label for="smartgrid-box">SmartGrid</label><br />
+        <label for="smartgrid-box">Smart Grid</label><br />
         <input type=checkbox name="strat-sel" id="thinkoutside-box" />
-        <label for="thinkoutside-box">ThinkOutside</label><br />
+        <label for="thinkoutside-box">Think Out</label><br />
         <input type=checkbox name="strat-sel" id="exhaustion-box" />
-        <label for="exhaustion-box">Exhaustion</label><br />
+        <label for="exhaustion-box">Exhaust</label><br />
         <input type=checkbox name="strat-sel" id="desperation-box" />
-        <label for="desperation-box">Desperation</label><br />
+        <label for="desperation-box">Desperate</label><br />
       </div>
+      <pre id="pos-label">(X,X)</pre>
     </div>
 
     <div id="main-col">

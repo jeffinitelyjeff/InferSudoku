@@ -41,13 +41,6 @@ $right-col-width: 400px
 $col-margin: 10px
 $height: 355px
 
-#pos-label
-  position: absolute
-  font-weight: bold
-  color: #00FF00
-  text-shadow: 1px 1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, -1px -1px 0 #000
-  display: none
-  z-index: 1
 
 #container
   height: $height
@@ -70,7 +63,17 @@ $height: 355px
     width: 100%
 
   #strat-select
+    overflow: auto
     font-size: 11px
+
+  #pos-label
+    font-weight: bold
+    font-size: 20px
+    text-align: center
+    color: #00FF00
+    text-shadow: 1px 1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, -1px -1px 0 #000
+    display: none
+    margin: 20px 0 20px 0
 
 #main-col
   float: left
@@ -80,7 +83,6 @@ $height: 355px
   margin-right: $col-margin
 
   #grid
-    z-index: -1
     margin-bottom: 10px
   
   #solve-b

@@ -82,10 +82,6 @@ $(document).ready ->
 
   log 'init webapp'
 
-  # Attach a callback to the document to have the position label follow the
-  # mouse.
-  dom.pos_label_track_mouse()
-
   # Set the position label to appear when in the grid and disappear when off the
   # grid.
   dom.grid_hide_show_pos_label()

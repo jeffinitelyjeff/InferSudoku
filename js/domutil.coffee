@@ -5,6 +5,7 @@
 # Attach functions to the window object for access in other files.
 root = exports ? this
 puzzles = root.puzzles
+cart_to_box = root.util.cart_to_box
 
 root.dom =
   ## Logging ##
@@ -61,12 +62,12 @@ root.dom =
   # Get the value in the input HTML element corresponding to the cell specified
   # in cartesian coordinates.
   get_input_val: (x, y) ->
-    $(sel(x,y) + " .num").val()
+    $(@sel(x,y) + " .num").val()
 
   # Set the value in the input HTML element corresponding to the cell specified
   # in cartesian coordinates.
   set_input_val: (x, y, v) ->
-    $(sel(x,y) + " .num").val(v)
+    $(@sel(x,y) + " .num").val(v)
 
 
   ## Animation Functions ##
@@ -87,31 +88,19 @@ root.dom =
   # Assigns hover callbacks to the cell specified in cartesian coordinates which
   # highlight the cells in the same row, col, and box as the specified cell.
   color_adjacent: (x,y) ->
-    box_s = sel_box(x,y)
-    row_s = sel_row(x,y)
-    col_s = sel_col(x,y)
-    fn1 = -> highlight(box_s, row_s, col_s)
-    fn2 = -> dehighlight(box_s, row_s, col_s)
-    $(sel(x,y)).hover(fn1, fn2)
+    box_s = @sel_box(x,y)
+    row_s = @sel_row(x,y)
+    col_s = @sel_col(x,y)
+    fn1 = => @highlight(box_s, row_s, col_s)
+    fn2 = => @dehighlight(box_s, row_s, col_s)
+    $(@sel(x,y)).hover(fn1, fn2)
 
   # Assigns hover callbacks to the cell specified in cartesian coordinates which
   # updates the position label with the cell's coordinates.
   display_pos: (x,y) ->
     fn = ->
       $("#pos-label").html("(#{x},#{y})")
-    $(sel(x,y)).hover(fn)
-
-  # Attach a callback to the document to have a particular element move
-  # alongside the mouse.
-  track_mouse: (elem) ->
-    $(document).mousemove( (e) ->
-      $(elem).css('left', e.pageX + 5)
-      $(elem).css('top', e.pageY + 5) )
-
-  # Attach a callback to the documetn to have the position label follow the
-  # mouse.
-  pos_label_track_mouse: ->
-    @track_mouse("#pos-label")
+    $(@sel(x,y)).hover(fn)
 
 
   ## Other Utilities ##
@@ -123,7 +112,7 @@ root.dom =
     $("#strat").html(s)
 
   # Hide the strategy display.
-  hide_start: (e) ->
+  hide_strat: (e) ->
     $("#strat").fadeTo(0, 0)
 
   # Hide the position label.
@@ -132,12 +121,14 @@ root.dom =
 
   # Show the position label.
   show_pos_label: (e) ->
-    $("#pos-label").css('display', 'display')
+    $("#pos-label").css('display', 'block')
 
   # Attach hover callbacks to the grid to display the pos label when hovered and
   # hide the label when not hovered.
   grid_hide_show_pos_label: ->
-    $("#grid").hover(show_pos_label, hide_pos_label)
+    show = => @show_pos_label()
+    hide = => @hide_pos_label()
+    $("#grid").hover(show, hide)
 
   # Fill the input text box with the specified string (should be a grid
   # representation).
@@ -151,7 +142,7 @@ root.dom =
   # Attaches a callback to the puzzle select dropdown menu to update the input
   # textbox with the new puzzle selected.
   update_stdin_on_puzzle_select: ->
-    $("#puzzle-select").change( -> @fill_stdin(@get_selected_puzzle))
+    $("#puzzle-select").change( => @fill_stdin(@get_selected_puzzle))
 
   # Parse the input in the input textbox and fill in the dom grid with those
   # values.
@@ -174,14 +165,19 @@ root.dom =
   # Attaches a callback to the input button to inject the input text into the
   # dom grid.
   input_b_inject: ->
-    $("#input-b").click inject_input
+    $("#input-b").click @inject_input
 
   # Attach click callback to the solve button to perform animation when clicked,
   # and then perform the specified callback. The animation will fade out the
   # solve button, and then fade in the strategy display.
   solve_b_animate: (callback) ->
+    strat_options = {opacity: 1, top: '-75px'}
+    strat_animate = ->
+      $("#strat").animate(strat_options, 250, 'easeInQuad', callback)
+    solve_options = {opacity: 0, top: '+50px'}
+    solve_animate = ->
+      $("#solve-b").animate(solve_options, 250, 'easeOutQuad', strat_animate)
+
     $("#solve-b").click ->
       $("#solve-b, #input-b, input.num").attr('disabled', true)
-      $("solve-b").animate(`{opacity: 0, top: '+=50px'}`, 250, 'easeOutQuad', ->
-        $("strat").animate(`{opacity: 1, top: '-=75px'}`, 250, 'easeInQuad', ->
-          callback() ) )
+      solve_animate()

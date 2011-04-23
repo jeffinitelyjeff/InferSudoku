@@ -11,6 +11,7 @@ num_pos = root.util.num_pos
 FILL_DELAY = root.FILL_DELAY
 STRAT_DELAY = root.STRAT_DELAY
 max_solve_iter = root.max_solve_iter
+log = root.dom.log
 
 ## ---------------------------------------------------------------------------
 ## Solver Class --------------------------------------------------------------

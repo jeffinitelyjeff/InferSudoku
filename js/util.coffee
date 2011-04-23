@@ -32,12 +32,12 @@ root.util =
   #     Base index -> box coordinates
   #     i -> [b_x, b_y, s_x, s_y]
   base_to_box: (i) ->
-    cart_to_box base_to_cart(i)...
+    cart_to_box @base_to_cart(i)...
 
   #     Box coordinates -> base index
   #     b_x,b_y,s_x,s_y -> i
   box_to_base: (b_x, b_y, s_x, s_y) ->
-    cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
+    cart_to_base @box_to_cart(b_x, b_y, s_x, s_y)...
 
   ## Other Utilities ##
 
