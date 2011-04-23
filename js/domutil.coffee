@@ -175,9 +175,23 @@ root.dom =
     strat_animate = ->
       $("#strat").animate(strat_options, 250, 'easeInQuad', callback)
     solve_options = {opacity: 0, top: '+50px'}
-    solve_animate = ->
+    solve_animate = (c) ->
       $("#solve-b").animate(solve_options, 250, 'easeOutQuad', strat_animate)
 
     $("#solve-b").click ->
       $("#solve-b, #input-b, input.num").attr('disabled', true)
       solve_animate()
+
+  solve_done_animate: ->
+    strat_options = {opacity: 0, top: '+75px'}
+    strat_animate = ->
+      $("#strat").animate(strat_options, 250, 'easeOutQuad', solve_animate)
+    solve_options = {opacity: 1, top: '-50px'}
+    solve_animate = ->
+      $("#solve-b").animate(solve_options, 250, 'easeInQuad', enable)
+    enable = ->
+      $("#solve-b, #input-b, input.num").attr('disabled', false)
+
+    $("#strat").click ->
+      strat_animate()
+

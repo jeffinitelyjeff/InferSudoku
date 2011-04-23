@@ -11,7 +11,8 @@ num_pos = root.util.num_pos
 FILL_DELAY = root.FILL_DELAY
 STRAT_DELAY = root.STRAT_DELAY
 max_solve_iter = root.max_solve_iter
-log = root.dom.log
+dom = root.dom
+log = dom.log
 
 ## ---------------------------------------------------------------------------
 ## Solver Class --------------------------------------------------------------
@@ -647,9 +648,7 @@ class Solver
   solve_loop_done: ->
     log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
 
-    $("#strat").animate(`{opacity: 0.0, top: '+=75px'}`, 500, 'easeOutQuad', ->
-      $("#solve-b").animate(`{opacity: 1.0, top: '-=50px'}`, 500, 'easeInQuad', ->
-      $("#solve-b, #input-b, input.num").attr('disabled', false)))
+    dom.solve_done_animate()
 
   solve: ->
     @solve_loop()
