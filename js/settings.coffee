@@ -1,4 +1,3 @@
-# Export settings to the window object for reference in other files.
 root = exports ? this
 
 # Delay after filling in cells.

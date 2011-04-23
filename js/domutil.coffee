@@ -4,6 +4,7 @@
 
 # Attach functions to the window object for access in other files.
 root = exports ? this
+puzzles = root.puzzles
 
 root.dom =
   ## Logging ##
@@ -100,10 +101,87 @@ root.dom =
       $("#pos-label").html("(#{x},#{y})")
     $(sel(x,y)).hover(fn)
 
+  # Attach a callback to the document to have a particular element move
+  # alongside the mouse.
+  track_mouse: (elem) ->
+    $(document).mousemove( (e) ->
+      $(elem).css('left', e.pageX + 5)
+      $(elem).css('top', e.pageY + 5) )
+
+  # Attach a callback to the documetn to have the position label follow the
+  # mouse.
+  pos_label_track_mouse: ->
+    @track_mouse("#pos-label")
+
+
+  ## Other Utilities ##
+  # These are mostly wrapper functions purely so that `main.coffee` doesn't ever
+  # have to refer to dom elements explicitly by name.
+
   # Updates the display with a new strategy.
   announce_strategy: (s) ->
     $("#strat").html(s)
 
+  # Hide the strategy display.
+  hide_start: (e) ->
+    $("#strat").fadeTo(0, 0)
 
-# Export the log function to window for convenience in other files.
-root.log = dom.log
+  # Hide the position label.
+  hide_pos_label: (e) ->
+    $("#pos-label").css('display', 'none')
+
+  # Show the position label.
+  show_pos_label: (e) ->
+    $("#pos-label").css('display', 'display')
+
+  # Attach hover callbacks to the grid to display the pos label when hovered and
+  # hide the label when not hovered.
+  grid_hide_show_pos_label: ->
+    $("#grid").hover(show_pos_label, hide_pos_label)
+
+  # Fill the input text box with the specified string (should be a grid
+  # representation).
+  fill_stdin: (s) ->
+    $("#stdin").val(s)
+
+  # Get the name of the selected puzzle from dropdown menu.
+  get_selected_puzzle: ->
+    puzzles[$("#puzzle-select").val()]
+
+  # Attaches a callback to the puzzle select dropdown menu to update the input
+  # textbox with the new puzzle selected.
+  update_stdin_on_puzzle_select: ->
+    $("#puzzle-select").change( -> @fill_stdin(@get_selected_puzzle))
+
+  # Parse the input in the input textbox and fill in the dom grid with those
+  # values.
+  inject_input: ->
+    text = $("#stdin").val()
+
+    rows = text.split("\n")
+
+    for r in [0...rows.length]
+      row = rows[r]
+      vs = row.split('')
+
+      for c in [0...vs.length]
+        v = vs[c]
+        if v is '.'
+          @set_input_val(c, r, '')
+        else
+          @set_input_val(c, r, v)
+
+  # Attaches a callback to the input button to inject the input text into the
+  # dom grid.
+  input_b_inject: ->
+    $("#input-b").click inject_input
+
+  # Attach click callback to the solve button to perform animation when clicked,
+  # and then perform the specified callback. The animation will fade out the
+  # solve button, and then fade in the strategy display.
+  solve_b_animate: (callback) ->
+    $("#solve-b").click ->
+      $("#solve-b, #input-b, input.num").attr('disabled', true)
+      $("solve-b").animate(`{opacity: 0, top: '+=50px'}`, 250, 'easeOutQuad', ->
+        $("strat").animate(`{opacity: 1, top: '-=75px'}`, 250, 'easeInQuad', ->
+          callback() ) )

@@ -1,3 +1,16 @@
+root = exports ? this
+
+## Import statements.
+base_to_cart = root.util.base_to_cart
+cart_to_base = root.util.cart_to_base
+cart_to_box = root.util.cart_to_box
+box_to_cart = root.util.bax_to_cart
+base_to_box = root.util.base_to_box
+box_to_base = root.util.box_to_base
+num_pos = root.util.num_pos
+FILL_DELAY = root.FILL_DELAY
+STRAT_DELAY = root.STRAT_DELAY
+max_solve_iter = root.max_solve_iter
 
 ## ---------------------------------------------------------------------------
 ## Solver Class --------------------------------------------------------------
@@ -643,5 +656,4 @@ class Solver
 
 ## Wrap Up ##
 # Export the Solver class to the window for access in the main file.
-root = exports ? this
 root.Solver = Solver

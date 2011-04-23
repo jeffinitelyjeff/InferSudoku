@@ -4,6 +4,18 @@
 # [solver.coffee] contains everything that operates on the grid but represents
 # human-level inference.
 
+## Import statements
+
+root = exports ? this
+
+dom = root.dom
+log = dom.log
+base_to_cart = root.util.base_to_cart
+cart_to_base = root.util.cart_to_base
+cart_to_box = root.util.cart_to_box
+box_to_cart = root.util.box_to_cart
+base_to_box = root.util.base_to_box
+box_to_base = root.util.box_to_base
 
 ## Grid Class ##
 
@@ -183,5 +195,4 @@ class Grid
 ## Wrap Up ##
 
 # Attach grid class to the window object for access in other files.
-root = exports ? this
 root.Grid = Grid
