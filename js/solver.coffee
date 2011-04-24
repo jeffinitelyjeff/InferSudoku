@@ -465,13 +465,16 @@ class Solver
     @strat_results = []
     iter = 1
 
-    until @grid.is_solved() or @solve_iter > max_solve_iter
+    until @grid.is_solved() or iter > max_solve_iter
+      log "Iteration #{iter}"
       @choose_strategy()
+      iter += 1
 
 
     log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
 
     dom.solve_done_animate()
+
 
 
 
