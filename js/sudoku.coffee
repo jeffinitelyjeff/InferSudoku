@@ -101,7 +101,7 @@ $(document).ready ->
       dom.display_pos(i,j)
 
   # Inject the input textbox into the grid when the input button is clicked.
-  dom.input_b_inject
+  dom.input_b_inject()
 
   # Also, inject it intially, too.
   dom.inject_input()

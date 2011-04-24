@@ -4,8 +4,12 @@
 
 # Attach functions to the window object for access in other files.
 root = exports ? this
+
 puzzles = root.puzzles
-cart_to_box = root.util.cart_to_box
+util = root.util
+HIGHLIGHT_FADEIN_TIME = root.HIGHLIGHT_FADEIN_TIME
+HIGHLIGHT_DURATION = root.HIGHLIGHT_DURATION
+HIGHLIGHT_FADEOUT_TIME = root.HIGHLIGHT_FADEOUT_TIME
 
 root.dom =
   ## Logging ##
@@ -23,13 +27,13 @@ root.dom =
 
   # Returns a selector for the cell specified in cartesian coordinates.
   sel: (x, y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_box x,y
+    [b_x, b_y, s_x, s_y] = util.cart_to_box x,y
     return ".gr#{b_y} .gc#{b_x} .r#{s_y} .c#{s_x}"
 
   # Returns a selector for all the cells in the same row as the cell specified
   # in cartesian coordinates.
   sel_row: (x,y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_box x, y
+    [b_x, b_y, s_x, s_y] = util.cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
@@ -39,7 +43,7 @@ root.dom =
   # Returns a selector for all the cells in the same col as the cell specified
   # in cartesian coordinates.
   sel_col: (x,y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_box x, y
+    [b_x, b_y, s_x, s_y] = util.cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
@@ -49,7 +53,7 @@ root.dom =
   # Returns a selector for all the cells in the same box as the cell specified
   # in cartesian coordinates.
   sel_box: (x,y) ->
-    [b_x, b_y, s_x, s_y] = cart_to_box x, y
+    [b_x, b_y, s_x, s_y] = util.cart_to_box x, y
     s = ""
     for i in [0..2]
       for j in [0..2]
@@ -65,25 +69,56 @@ root.dom =
     $(@sel(x,y) + " .num").val()
 
   # Set the value in the input HTML element corresponding to the cell specified
-  # in cartesian coordinates.
-  set_input_val: (x, y, v) ->
+  # in cartesian coordinates. Will insert a blank space if v is 0 or a dot.
+  set_input_val: (x, y, v, given) ->
+    if v is 0 or v is '.'
+      v = ''
+
     $(@sel(x,y) + " .num").val(v)
+
+    if given
+      $(@sel(x,y) + " .num").addClass('given')
+    else
+      $(@sel(x,y) + " .num").removeClass('given')
 
 
   ## Animation Functions ##
 
-  # Adds the proper CSS classes for cell highlighting to the specified JQuery
-  # selectors.
-  highlight: (box_sel, row_sel, col_sel) ->
+  # Set the value in the input HTMl element corresponding to the cell specified
+  # in cartesian coordinates. Will insert a blank space if v is 0 or a dot, and
+  # otherwise will highlight the set cell.
+  set_input_val_and_highlight: (x, y, v) ->
+    @set_input_val(x,y,v)
+
+    unless v is 0 or v is '.'
+      $(@sel(x,y)).addClass('highlight', HIGHLIGHT_FADEIN_TIME).
+        delay(HIGHLIGHT_DURATION).
+        removeClass('highlight', HIGHLIGHT_FADEOUT_TIME)
+      setTimeout(( =>
+        $(@sel(x,y)).removeClass('highlight')
+        $(@sel(x,y)).removeAttr('style') ),
+        2*(HIGHLIGHT_FADEIN_TIME+HIGHLIGHT_DURATION+HIGHLIGHT_FADEOUT_TIME))
+
+
+  # Adds the proper CSS classes for adjacent cell highlighting to the specified
+  # JQuery selectors.
+  highlight_adj: (box_sel, row_sel, col_sel) ->
     $(box_sel).addClass("adj-box")
     $(row_sel).addClass("adj-row")
     $(col_sel).addClass("adj-col")
+    $(box_sel).removeAttr('style')
+    $(row_sel).removeAttr('style')
+    $(col_sel).removeAttr('style')
 
-  # Removes CSS classes for cell highlighting from the specified JQuery selectors.
-  dehighlight: (box_sel, row_sel, col_sel) ->
+  # Removes CSS classes for adjacent cell highlighting from the specified JQuery
+  # selectors.
+  dehighlight_adj: (box_sel, row_sel, col_sel) ->
     $(box_sel).removeClass("adj-box")
     $(row_sel).removeClass("adj-row")
     $(col_sel).removeClass("adj-col")
+    $(box_sel).removeAttr('style')
+    $(row_sel).removeAttr('style')
+    $(col_sel).removeAttr('style')
 
   # Assigns hover callbacks to the cell specified in cartesian coordinates which
   # highlight the cells in the same row, col, and box as the specified cell.
@@ -91,8 +126,8 @@ root.dom =
     box_s = @sel_box(x,y)
     row_s = @sel_row(x,y)
     col_s = @sel_col(x,y)
-    fn1 = => @highlight(box_s, row_s, col_s)
-    fn2 = => @dehighlight(box_s, row_s, col_s)
+    fn1 = => @highlight_adj(box_s, row_s, col_s)
+    fn2 = => @dehighlight_adj(box_s, row_s, col_s)
     $(@sel(x,y)).hover(fn1, fn2)
 
   # Assigns hover callbacks to the cell specified in cartesian coordinates which
@@ -157,24 +192,21 @@ root.dom =
 
       for c in [0...vs.length]
         v = vs[c]
-        if v is '.'
-          @set_input_val(c, r, '')
-        else
-          @set_input_val(c, r, v)
+        @set_input_val(c, r, v, true)
 
   # Attaches a callback to the input button to inject the input text into the
   # dom grid.
   input_b_inject: ->
-    $("#input-b").click @inject_input
+    $("#input-b").click( => @inject_input())
 
   # Attach click callback to the solve button to perform animation when clicked,
   # and then perform the specified callback. The animation will fade out the
   # solve button, and then fade in the strategy display.
   solve_b_animate: (callback) ->
-    strat_options = {opacity: 1, top: '-75px'}
+    strat_options = {opacity: 1, top: '-=75px'}
     strat_animate = ->
       $("#strat").animate(strat_options, 250, 'easeInQuad', callback)
-    solve_options = {opacity: 0, top: '+50px'}
+    solve_options = {opacity: 0, top: '+=50px'}
     solve_animate = (c) ->
       $("#solve-b").animate(solve_options, 250, 'easeOutQuad', strat_animate)
 
@@ -183,15 +215,14 @@ root.dom =
       solve_animate()
 
   solve_done_animate: ->
-    strat_options = {opacity: 0, top: '+75px'}
+    strat_options = {opacity: 0, top: '+=75px'}
     strat_animate = ->
       $("#strat").animate(strat_options, 250, 'easeOutQuad', solve_animate)
-    solve_options = {opacity: 1, top: '-50px'}
+    solve_options = {opacity: 1, top: '-=50px'}
     solve_animate = ->
       $("#solve-b").animate(solve_options, 250, 'easeInQuad', enable)
     enable = ->
       $("#solve-b, #input-b, input.num").attr('disabled', false)
 
-    $("#strat").click ->
-      strat_animate()
+    strat_animate()
 

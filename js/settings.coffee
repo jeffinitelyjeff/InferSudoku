@@ -11,3 +11,11 @@ root.STRAT_DELAY = 100
 # Maximum number of iterations to try for solve loop.
 root.max_solve_iter = 10
 
+# Time it takes for a highlighted cell to fade in.
+root.HIGHLIGHT_FADEIN_TIME = 500
+
+# Time a highlighted cell stays fully highlighted.
+root.HIGHLIGHT_DURATION = 500
+
+# Time it takes for a highlighted cell to fade out.
+root.HIGHLIGHT_FADEOUT_TIME = 500

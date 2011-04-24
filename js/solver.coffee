@@ -1,16 +1,12 @@
 root = exports ? this
 
 ## Import statements.
-base_to_cart = root.util.base_to_cart
-cart_to_base = root.util.cart_to_base
-cart_to_box = root.util.cart_to_box
-box_to_cart = root.util.bax_to_cart
-base_to_box = root.util.base_to_box
-box_to_base = root.util.box_to_base
-num_pos = root.util.num_pos
+
 FILL_DELAY = root.FILL_DELAY
 STRAT_DELAY = root.STRAT_DELAY
 max_solve_iter = root.max_solve_iter
+
+util = root.util
 dom = root.dom
 log = dom.log
 
@@ -18,7 +14,7 @@ log = dom.log
 ## Solver Class --------------------------------------------------------------
 
 class Solver
-  constructor: (@grid) ->
+  constructor: (@grid, why) ->
 
     # A Solver is constructed once every time the solve button is hit, so all
     # the relevant parameters are set to their defaults here.
@@ -81,7 +77,7 @@ class Solver
     ps = []
     for b in [0..2]
       for a in [0..2]
-        i = box_to_base x,y,a,b
+        i = util.box_to_base x,y,a,b
         ps.push(i) unless v in @naive_impossible_values(i)
 
     return ps
@@ -92,7 +88,7 @@ class Solver
   naive_possible_positions_in_row: (v, y) ->
     ps = []
     for x in [0..8]
-      i = cart_to_base x,y
+      i = util.cart_to_base x,y
       ps.push(i) unless v in @naive_impossible_values(i)
 
     return ps
@@ -103,7 +99,7 @@ class Solver
   naive_possible_positions_in_col: (v, x) ->
     ps = []
     for y in [0..8]
-      i = cart_to_base x,y
+      i = util.cart_to_base x,y
       ps.push(i) unless v in @naive_impossible_values(i)
 
     return ps
@@ -114,8 +110,8 @@ class Solver
 
     @occurrences[v] += 1
 
-    [x,y] = base_to_cart i
-    [b_x,b_y,s_x,s_y] = base_to_box i
+    [x,y] = util.base_to_cart i
+    [b_x,b_y,s_x,s_y] = util.base_to_box i
 
     fun =  ( =>
       @fill_obvious_row(y, =>
@@ -128,7 +124,7 @@ class Solver
   fill_obvious_row: (y, callback) ->
     vals = @grid.get_row_vals y
 
-    if num_pos(vals) == 8
+    if util.num_pos(vals) == 8
       # get the one missing value
       v = 1
       v += 1 until v not in vals
@@ -147,7 +143,7 @@ class Solver
   fill_obvious_col: (x, callback) ->
     vals = @grid.get_col_vals x
 
-    if num_pos(vals) == 8
+    if util.num_pos(vals) == 8
       # get the one missing value
       v = 1
       v += 1 until v not in vals
@@ -173,7 +169,7 @@ class Solver
 
     vals = @grid.get_box_vals b
 
-    if num_pos(vals) == 8
+    if util.num_pos(vals) == 8
       # get the one missing value
       v = 1
       v += 1 until v not in vals
@@ -182,13 +178,13 @@ class Solver
       box_idxs = []
       for j in [0..2]
         for k in [0..2]
-          box_idxs.push box_to_base(b_x, b_y, k, j)
+          box_idxs.push util.box_to_base(b_x, b_y, k, j)
 
       # get the position missing it.
       i = 0
       i += 1 until @grid.get(box_idxs[i]) == 0
 
-      log "Setting (#{base_to_cart(box_idxs[i])}) to #{v} because it's" +
+      log "Setting (#{util.base_to_cart(box_idxs[i])}) to #{v} because it's" +
       " box-obvious"
       @set(box_idxs[i], v, callback)
     else
@@ -196,11 +192,11 @@ class Solver
 
   # wrapper for @grid.set_c which will update the knowledge base if it needs to.
   set_c: (x,y,v, callback) ->
-    @set(cart_to_base(x,y), v, callback)
+    @set(util.cart_to_base(x,y), v, callback)
 
   # wrapper for @grid.set_b which will update the knowldege base if it needs to.
   set_b: (b_x, b_y, s_x, s_y, callback) ->
-    @set(cart_to_base box_to_cart(b_x, b_y, s_x, s_y)..., v, callback)
+    @set(util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)..., v, callback)
 
   # adds a restriction of value v to cell with base index i. returns whether the
   # restriction was useful information (ie, if the restriction wasn't already in
@@ -224,7 +220,7 @@ class Solver
   # the list of values either possible or impossle.
   get_restrictions: (i) ->
     r = @restrictions[i]
-    n = num_pos r
+    n = util.num_pos r
 
     if n == 0
       return { type: "none" }
@@ -259,12 +255,12 @@ class Solver
   # if the base indices are all in the same row, then returns that row;
   # otherwise returns false.
   same_row: (idxs) ->
-    first_row = base_to_cart(idxs[0])[1]
+    first_row = util.base_to_cart(idxs[0])[1]
     idxs = _.rest(idxs)
 
     for idx in idxs
       # return false if one of the rows doesn't match the first.
-      return false if base_to_cart(idx)[1] != first_row
+      return false if util.base_to_cart(idx)[1] != first_row
 
     # return true if they all match the first.
     return first_row
@@ -272,12 +268,12 @@ class Solver
   # if the base indices are all in the same column, then returns that col;
   # otherwise returns false.
   same_col: (idxs) ->
-    first_col = base_to_cart(idxs[0])[0]
+    first_col = util.base_to_cart(idxs[0])[0]
     idxs = _.rest(idxs)
 
     for idx in idxs
       # return false if one of the cols doesn't match the first.
-      return false if base_to_cart(idx)[0] != first_col
+      return false if util.base_to_cart(idx)[0] != first_col
 
     # return true if they all match the first
     return first_col
@@ -285,12 +281,12 @@ class Solver
   # if the base indices are all in the same box, then returns that box;
   # otherwise returns false.
   same_box: (idxs) ->
-    first_box = base_to_box(idx[0])
+    first_box = util.base_to_box(idx[0])
     idxs = _.rest(idxs)
 
     for idx in idxs
       # return false if one of the boxes doesn't match the first.
-      box = base_to_box(idx)
+      box = util.base_to_box(idx)
       return false if box[0] != first_box[0] or box[1] != first_box[1]
 
     # return true if they all match the first
@@ -308,8 +304,6 @@ class Solver
   # Get the list of values in order of their occurrences, and start the main
   # value loop.
   GridScan: ->
-    log "Trying GridScan"
-
     @updated = false
 
     vals = @vals_by_occurrences_above_4()
@@ -325,6 +319,8 @@ class Solver
   # boxes; if there are no such boxes, then either go to the next value or
   # finish the strategy.
   GridScanValLoop: (vs, vi) ->
+    log "GridScan examining value #{vs[vi]}"
+
     v = vs[vi]
 
     boxes = []
@@ -353,14 +349,16 @@ class Solver
   # there are no more boxes and there are more values; move on to the next
   # strategy if there are n omroe boxes or values.
   GridScanBoxLoop: (vs, vi, bs, bi) ->
+    log "GridScan examining value #{vs[vi]} in box #{bs[bi]}"
+
     v = vs[vi]
     b = bs[bi]
 
     ps = @naive_possible_positions_in_box v, b
 
-    next_box = ( => @GridScanBoxLoop(vs, vi, bs, bi+1) )
-    next_val = ( => @GridScanValLoop(vs, vi+1) )
-    next_strat = ( => @solve_loop() )
+    next_box =   => @GridScanBoxLoop(vs, vi, bs, bi+1)
+    next_val =   => @GridScanValLoop(vs, vi+1)
+    next_strat = => @solve_loop()
 
     if bi < bs.length - 1
       # go to the next box if there are more boxes.
@@ -376,7 +374,7 @@ class Solver
       delay = STRAT_DELAY
 
     if ps.length == 1
-      log "Setting (#{base_to_cart ps[0]}) to #{v} by GridScan"
+      log "Setting (#{util.base_to_cart ps[0]}) to #{v} by GridScan"
       @set(ps[0], v, =>
         @updated = true
         delay += FILL_DELAY
@@ -479,7 +477,7 @@ class Solver
 
     switch ps.length
       when 1
-        log "Setting (#{base_to_cart ps[0]}) to #{v} by SmartGridScan"
+        log "Setting (#{util.base_to_cart ps[0]}) to #{v} by SmartGridScan"
         @set(ps[0], v, =>
           @updated = true
           delay += FILL_DELAY)
@@ -488,13 +486,13 @@ class Solver
         if @same_row(ps)
           y = @same_row(ps)
           for x in [0..8]
-            i = cart_to_base(x,y)
+            i = util.cart_to_base(x,y)
             unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
               just_updated = @add_restriction(i,v)
         else if @same_col(ps)
           x = @same_col(ps)
           for y in [0..8]
-            i = cart_to_base(x,y)
+            i = util.cart_to_base(x,y)
             unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
               just_updated = @add_restriction(i,v)
         log "Refining knowldege base using SmartGridScan" if just_updated
@@ -524,8 +522,6 @@ class Solver
 
   # Get a list of boxes and begin the main loop through the box list.
   ThinkInsideTheBox: ->
-    log "Trying ThinkInsideTheBox"
-
     @updated = false
 
     boxes = [0..8]
@@ -581,7 +577,7 @@ class Solver
       delay = STRAT_DELAY
 
     if ps.length == 1
-      log "Setting (#{base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
+      log "Setting (#{util.base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
       @set(ps[0], v, =>
         @updated = true
         delay += FILL_DELAY
@@ -606,16 +602,19 @@ class Solver
     if @should_gridscan()
       @prev_results.push {strat: "GridScan"}
       dom.announce_strategy "GridScan"
+      log "Trying GridScan"
       return @GridScan()
 
     if @should_thinkinsidethebox()
       @prev_results.push {strat: "ThinkInsideTheBox"}
       dom.announce_strategy "ThinkInside<br />TheBox"
+      log "Trying ThinkInsideTheBox"
       return @ThinkInsideTheBox()
 
     if @should_smartgridscan()
       @prev_results.push {strat: "SmartGridSCan"}
       dom.announce_strategy "SmartGridScan"
+      log "Trying ThinkInsideTheBox"
       return @SmartGridScan()
 
     # FIXME
@@ -635,8 +634,6 @@ class Solver
 
     # done if the grid is complete or we've done too many iterations
     done = @grid.is_solved() or @solve_iter > max_solve_iter
-
-    log "tested if done"
 
     if done
       @solve_loop_done()

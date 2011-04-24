@@ -17,7 +17,7 @@
   @include place-vert(50%, $height)
 
 /* Number formatting */
-.num, .num:disabled
+input.num, input.num:disabled
   background: none
   border: none
   width: 20px
@@ -107,44 +107,8 @@ $height: 355px
     height: 100%
 
 
-// #main-col
-//  @include place-horiz(30%, 284px)
-
-//#output-col
-//  @include place-horiz(80%, 400px)
-
-//  #stderr
-//    width: 400px
-
-//#stdin
-//  height: 135px
-//  width: 75px
-
-//#input-b, #puzzle-select
-//  width: 75px
-  
-//#stderr
-//  @include place-vert(50%, 500px)
-//  // @include place-horiz(80%, 400px)
-    
-//#solve-b
-//  font-size: 40px
-
-//  // @include center-horiz(200px)
-//  @include place-vert(80%, 80px)
-
-//#pos-label
-//  font-size: 20px
-
-//  // @include center-horiz(72px)
-//  @include place-vert(10%, 20px)
-
-
 /* Main grid table */      
 table#grid
-
-  // @include place-horiz(30%, 284px)
-  // @include place-vert(40%, 302px)
 
   border-spacing: 0
   border: 1px solid black
@@ -165,7 +129,7 @@ table#grid
         spacing: 0
         background-color: $cell-bg
 
-        input[type=text]
+        .given
           font-weight: bold
         
         &.adj-box
@@ -180,12 +144,12 @@ table#grid
           input[type=text]
             color: $num-hover-col
 
-        &.new input[type=text]
-          font-weight: normal
-
         &.highlight
           background-color: $cell-highlight
-          color: black
+          color: #000
+
+        input:disabled
+          color: #000
 
         &:first-child
           border-left: 0

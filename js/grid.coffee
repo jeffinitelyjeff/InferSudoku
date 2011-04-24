@@ -10,12 +10,7 @@ root = exports ? this
 
 dom = root.dom
 log = dom.log
-base_to_cart = root.util.base_to_cart
-cart_to_base = root.util.cart_to_base
-cart_to_box = root.util.cart_to_box
-box_to_cart = root.util.box_to_cart
-base_to_box = root.util.base_to_box
-box_to_base = root.util.box_to_base
+util = root.util
 
 ## Grid Class ##
 
@@ -33,11 +28,11 @@ class Grid
 
   # Access an element from the grid using cartesian coordinates.
   get_c: (x,y) ->
-    @get cart_to_base(x,y)
+    @get util.cart_to_base(x,y)
 
   # Access an element from the grid using box coordinates.
   get_b: (b_x, b_y, s_x, s_y) ->
-    @get cart_to_base box_to_cart(b_x, b_y, s_x, s_y)...
+    @get util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)...
 
   ### Mutator Methods ###
 
@@ -48,22 +43,17 @@ class Grid
     @base_array[i] = v
 
     # change value in DOM and highlight if setting to a non-blank space.
-    [x,y] = base_to_cart i
-    if v is 0
-      dom.set_input_val(x,y,'')
-    else
-      dom.set_input_val(x,y,v)
-      $(dom.sel(x,y)).addClass('new')
-      $(dom.sel(x,y)).
-        addClass('highlight', 500).delay(500).removeClass('highlight', 2000)
+    [x,y] = util.base_to_cart i
+
+    dom.set_input_val_and_highlight(x,y,v)
 
   # Set a cell specified by cartesian coordinates to a value.
   set_c: (x,y,v) ->
-    @set(cart_to_base(x,y), v)
+    @set(util.cart_to_base(x,y), v)
 
   # Set a cell specified by box coordinates to a value.
   set_b: (b_x, b_y, s_x, s_y) ->
-    @set(cart_to_base box_to_cart(b_x, b_y, s_x, s_y)..., v)
+    @set(util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)..., v)
 
   ### Utility Methods ###
 
@@ -99,15 +89,15 @@ class Grid
 
   # Return whether base index i is in row r.
   idx_in_row: (i, r) ->
-    base_to_cart(i)[1] == r
+    util.base_to_cart(i)[1] == r
 
   # Return whether base index i is in col c.
   idx_in_col: (i, c) ->
-    base_to_cart(i)[0] == c
+    util.base_to_cart(i)[0] == c
 
   # Return whether base index i is in box b.
   idx_in_box: (i, b) ->
-    [b_x, b_y] = base_to_box i
+    [b_x, b_y] = util.base_to_box i
     return 3*b_y + b_x == b
 
   ### Convenient Advanced Accessors ###
@@ -123,7 +113,7 @@ class Grid
     a = []
     for j in [0..2]
       for i in [0..2]
-        a.push box_to_base x,y,i,j
+        a.push(util.box_to_base(x,y,i,j))
     return a
 
   # Returns the array of all the indices of the cells in the box which the
@@ -131,9 +121,9 @@ class Grid
   # coordinates or as a base index.
   get_box_idxs_of: (x,y) ->
     if y?
-      x = cart_to_base x,y
+      x = util.cart_to_base x,y
 
-    [b_x, b_y, s_x, s_y] = base_to_box x
+    [b_x, b_y, s_x, s_y] = util.base_to_box x
     @get_box_idxs b_x, b_y
 
   # Returns an array of all the values in a specified box. The box can be
@@ -150,7 +140,7 @@ class Grid
 
   # Returns an array of all the indices of the cells in a specified col.
   get_col_idxs: (x) ->
-    (cart_to_base(x,y) for y in [0..8])
+    (util.cart_to_base(x,y) for y in [0..8])
 
   # Returns the array of all indices of the cells in the col which this cell
   # occupies. The cell can be specified either in cartesian coordinates or as
@@ -159,7 +149,7 @@ class Grid
     if y?
       @get_col_idxs x
     else
-      @get_col_idxs base_to_cart(x)[0]
+      @get_col_idxs util.base_to_cart(x)[0]
 
   # Returns an array of all the values in a specified col.
   get_col_vals: (x) ->
@@ -172,7 +162,7 @@ class Grid
 
   # Returns an array of all the indices of the cells in a specified row.
   get_row_idxs: (y) ->
-    (cart_to_base(x,y) for x in [0..8])
+    (util.cart_to_base(x,y) for x in [0..8])
 
   # Returns the array of all indices of the cells in the row which this cell
   # occupies. The cell can be specified either in cartesian coordinates or as a
@@ -181,7 +171,7 @@ class Grid
     if y?
       @get_row_idxs y
     else
-      @get_row_idxs base_to_cart(x)[1]
+      @get_row_idxs util.base_to_cart(x)[1]
 
   # Returns an array of all the values in a specified row.
   get_row_vals: (y) ->
