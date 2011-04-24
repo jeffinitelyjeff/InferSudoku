@@ -1,6 +1,6 @@
 root = exports ? this
 
-## Import statements.
+## Import Statements ##
 
 FILL_DELAY = root.FILL_DELAY
 STRAT_DELAY = root.STRAT_DELAY
@@ -10,8 +10,7 @@ util = root.util
 dom = root.dom
 log = dom.log
 
-## ---------------------------------------------------------------------------
-## Solver Class --------------------------------------------------------------
+## Solver Class ##
 
 class Solver
   constructor: (@grid, why) ->
@@ -20,9 +19,9 @@ class Solver
     # the relevant parameters are set to their defaults here.
 
     # Restrictions are indexed first by cell index and then by value
-    # restricted. So @restrictions[0] is the array of restricted values for cell
-    # 0, and @restrictions[10][5] is a 1 if cell 10 is restricted from being value
-    # 5 or is a 0 if cell 10 is not restricted from being value 5.
+    # restricted. So `@restrictions[0]` is the array of restricted values for
+    # cell 0, and `@restrictions[10][5]` is a 1 if cell 10 is restricted from
+    # being value 5 or is a 0 if cell 10 is not restricted from being value 5.
     @restrictions = []
     make_empty_restriction = -> [0,0,0,0,0,0,0,0,0,0]
     @restrictions = (make_empty_restriction() for i in [0...81])
@@ -30,79 +29,79 @@ class Solver
     # Clusters are indexed first by type of group (row = 0, col = 1, box = 2),
     # then by index of that group (0-8), then by value (1-9), then by positions
     # (0-8), with a 0 indicating not in the cluster and 1 indicating in the
-    # cluster. For example, if @clusters[1][3][2] were [1,1,1,0,0,0,0,0,0], then
-    # the 4th row would need to have value 2 in the first 3 spots.
+    # cluster. For example, if `@clusters[1][3][2]` were `[1,1,1,0,0,0,0,0,0]`,
+    # then the 4th row would need to have value 2 in the first 3 spots.
     @clusters = []
     make_empty_cluster = -> [0,0,0,0,0,0,0,0,0]
     make_empty_cluster_vals = -> (make_empty_cluster() for i in [1..9])
     make_empty_cluster_groups = -> (make_empty_cluster_vals() for i in [0..8])
     @clusters = (make_empty_cluster_groups() for i in [0..2])
 
+    # Counts the iterations thrrough the loop, may be phased out in favor of
+    # just stopping once have exhausted strategies. FIXME phase this out.
     @solve_iter = 0
 
-    # count the number of occurrences of each value.
+    # Count the number of occurrences of each value.
     @occurrences = [0,0,0,0,0,0,0,0,0,0]
     for v in [1..9]
       for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
 
+    # A collection keeping track of previous success/failures of strategies.
     @prev_results = []
+
+    # Variable to track whether the last strategy was a success or not... FIXME
+    # should be phased out, is redundant with @prev_strategies
     @updated = true
 
+
+  ### Variable Access ###
+  # Some of the data structures used by Solver are relatively complicated and
+  # structured strangely. These methods provide better interfaces for
+  # interacting with (ie, getting/setting/adding to) these variables.
+
+  # Get the list of names of previously performed strategies.
   prev_strats: ->
     strats = (@prev_results[i].strat for i in [0...@prev_results.length])
 
-  # get an array of all naively impossible values to fill into the cell at base
-  # index i in the grid. the impossible values are simply the values filled in
-  # to cells that share a row, col, or box with this cell. if the cell already
-  # has a value, then will return all other values; this seems a little
-  # unnecessary, but turns out to make other things cleaner.
-  naive_impossible_values: (i) ->
-    if @grid.get(i) > 0
-      return _.without([1..9], @grid.get(i))
-    else
-      @grid.get_row_vals_of(i).
-        concat(@grid.get_col_vals_of(i)).
-          concat(@grid.get_box_vals_of(i))
+  # Adds a restriction of value v to cell with base index i. Returns whether the
+  # restriction was useful information (ie, if the restriction wasn't already in
+  # the database of restrictions)
+  add_restriction: (i, v) ->
+    # we should only be adding restrictions to cells which aren't set yet.
+    throw "Error" if @grid.get(i) != 0
 
-  # gets a list of positions in a specified box where v can be filled in based
-  # on naive_impossible_values. the box is specified either as (x,y) in
-  # [0..2]x[0..2] or with a single index in [0..8]. positions are returned as
-  # base indices of the grid.
-  naive_possible_positions_in_box: (v, x, y) ->
-    unless y?
-      y = Math.floor x / 3
-      x = Math.floor x % 3
+    prev = @restrictions[i][v]
+    @restrictions[i][v] = 1
+    return prev == 0
 
-    ps = []
-    for b in [0..2]
-      for a in [0..2]
-        i = util.box_to_base x,y,a,b
-        ps.push(i) unless v in @naive_impossible_values(i)
+  # Gets a representation of the cell restriction for the cell with base index
+  # i. If the cell has a lot of restrictions, then returns a list of values
+  # which the cell must be; if the cell has only a few restrictions, then
+  # returns a list of values which the cell can't be. The returned object will
+  # have a "type" field specifying if it's returning the list of cells possible
+  # ("must"), the list of cells not possible ("cant"), or no information because
+  # no info has yet been storetd for the cell ("none"), and a "vals" array with
+  # the list of values either possible or impossle.
+  get_restrictions: (i) ->
+    r = @restrictions[i]
+    n = util.num_pos r
 
-    return ps
+    if n == 0
+      return { type: "none" }
+    else if 1 <= n <= 4
+      cants = []
+      for j in [1..9]
+        cants.push(j) if r[j] == 1
+      return { type: "cant", vals: cants }
+    else # this will mean n >= 5
+      musts = []
+      for j in [1..9]
+        musts.push(j) if r[j] == 0
+      return { type: "must", vals: musts }
 
-  # gets a list of positions in a specified row where v can be filled in based
-  # on naive_impossible_values. the row is specified as a y-coordinate of
-  # cartesian coordinates, and positions are returned as base indices of the grid.
-  naive_possible_positions_in_row: (v, y) ->
-    ps = []
-    for x in [0..8]
-      i = util.cart_to_base x,y
-      ps.push(i) unless v in @naive_impossible_values(i)
 
-    return ps
-
-  # gets a list of positions in a specified col where v can be filled in based
-  # on naive_impossible_values. the row is specified as an x-coordinate of
-  # cartesian coordinates, and positions are returned as base indices of the grid.
-  naive_possible_positions_in_col: (v, x) ->
-    ps = []
-    for y in [0..8]
-      i = util.cart_to_base x,y
-      ps.push(i) unless v in @naive_impossible_values(i)
-
-    return ps
+  ### Setting ###
 
   # wrapper for @grid.set which will update the knowledge base.
   set: (i, v, callback) ->
@@ -119,6 +118,14 @@ class Solver
       @fill_obvious_box(b_x, b_y, callback) ) ) )
 
     setTimeout(fun, FILL_DELAY)
+
+  # wrapper for @grid.set_c which will update the knowledge base if it needs to.
+  set_c: (x,y,v, callback) ->
+    @set(util.cart_to_base(x,y), v, callback)
+
+  # wrapper for @grid.set_b which will update the knowldege base if it needs to.
+  set_b: (b_x, b_y, s_x, s_y, callback) ->
+    @set(util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)..., v, callback)
 
   # if the specified row only has one value missing, then will fill in that value.
   fill_obvious_row: (y, callback) ->
@@ -190,50 +197,60 @@ class Solver
     else
       callback()
 
-  # wrapper for @grid.set_c which will update the knowledge base if it needs to.
-  set_c: (x,y,v, callback) ->
-    @set(util.cart_to_base(x,y), v, callback)
 
-  # wrapper for @grid.set_b which will update the knowldege base if it needs to.
-  set_b: (b_x, b_y, s_x, s_y, callback) ->
-    @set(util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)..., v, callback)
+  ### Basic Logic ###
 
-  # adds a restriction of value v to cell with base index i. returns whether the
-  # restriction was useful information (ie, if the restriction wasn't already in
-  # the database of restrictions)
-  add_restriction: (i, v) ->
-    # we should only be adding restrictions to cells which aren't set yet.
-    throw "Error" if @grid.get(i) != 0
+  # get an array of all naively impossible values to fill into the cell at base
+  # index i in the grid. the impossible values are simply the values filled in
+  # to cells that share a row, col, or box with this cell. if the cell already
+  # has a value, then will return all other values; this seems a little
+  # unnecessary, but turns out to make other things cleaner.
+  naive_impossible_values: (i) ->
+    if @grid.get(i) > 0
+      return _.without([1..9], @grid.get(i))
+    else
+      @grid.get_row_vals_of(i).
+        concat(@grid.get_col_vals_of(i)).
+          concat(@grid.get_box_vals_of(i))
 
-    prev = @restrictions[i][v]
-    @restrictions[i][v] = 1
-    return prev == 0
+  # gets a list of positions in a specified box where v can be filled in based
+  # on naive_impossible_values. the box is specified either as (x,y) in
+  # [0..2]x[0..2] or with a single index in [0..8]. positions are returned as
+  # base indices of the grid.
+  naive_possible_positions_in_box: (v, x, y) ->
+    unless y?
+      y = Math.floor x / 3
+      x = Math.floor x % 3
 
+    ps = []
+    for b in [0..2]
+      for a in [0..2]
+        i = util.box_to_base x,y,a,b
+        ps.push(i) unless v in @naive_impossible_values(i)
 
-  # gets a representation of the cell restriction for the cell with base index
-  # i. if the cell has a lot of restrictions, then returns a list of values
-  # which the cell must be; if the cell has only a few restrictions, then
-  # returns a list of values which the cell can't be. the returned object will
-  # have a "type" field specifying if it's returning the list of cells possible
-  # ("must"), the list of cells not possible ("cant"), or no information because
-  # no info has yet been storetd for the cell ("none"), and a "vals" array with
-  # the list of values either possible or impossle.
-  get_restrictions: (i) ->
-    r = @restrictions[i]
-    n = util.num_pos r
+    return ps
 
-    if n == 0
-      return { type: "none" }
-    else if 1 <= n <= 4
-      cants = []
-      for j in [1..9]
-        cants.push(j) if r[j] == 1
-      return { type: "cant", vals: cants }
-    else # this will mean n >= 5
-      musts = []
-      for j in [1..9]
-        musts.push(j) if r[j] == 0
-      return { type: "must", vals: musts }
+  # gets a list of positions in a specified row where v can be filled in based
+  # on naive_impossible_values. the row is specified as a y-coordinate of
+  # cartesian coordinates, and positions are returned as base indices of the grid.
+  naive_possible_positions_in_row: (v, y) ->
+    ps = []
+    for x in [0..8]
+      i = util.cart_to_base x,y
+      ps.push(i) unless v in @naive_impossible_values(i)
+
+    return ps
+
+  # gets a list of positions in a specified col where v can be filled in based
+  # on naive_impossible_values. the row is specified as an x-coordinate of
+  # cartesian coordinates, and positions are returned as base indices of the grid.
+  naive_possible_positions_in_col: (v, x) ->
+    ps = []
+    for y in [0..8]
+      i = util.cart_to_base x,y
+      ps.push(i) unless v in @naive_impossible_values(i)
+
+    return ps
 
   # returns an array of values in order of the number of their occurrences,
   # in order of most prevalent to least prevalent. only includes values which
@@ -252,7 +269,7 @@ class Solver
         ord.push(v) if @occurrences[v] == o
     return ord
 
-  # if the base indices are all in the same row, then returns that row;
+  # If the base indices are all in the same row, then returns that row;
   # otherwise returns false.
   same_row: (idxs) ->
     first_row = util.base_to_cart(idxs[0])[1]
@@ -265,7 +282,7 @@ class Solver
     # return true if they all match the first.
     return first_row
 
-  # if the base indices are all in the same column, then returns that col;
+  # If the base indices are all in the same column, then returns that col;
   # otherwise returns false.
   same_col: (idxs) ->
     first_col = util.base_to_cart(idxs[0])[0]
@@ -278,7 +295,7 @@ class Solver
     # return true if they all match the first
     return first_col
 
-  # if the base indices are all in the same box, then returns that box;
+  # If the base indices are all in the same box, then returns that box;
   # otherwise returns false.
   same_box: (idxs) ->
     first_box = util.base_to_box(idx[0])
@@ -292,14 +309,17 @@ class Solver
     # return true if they all match the first
     return first_box[0]+first_box[0]*3
 
-  # STRATEGIES -----------------------------------------------------------------
 
-  # GridScan -------------------------------------------------------------------
-  # ----------------------------------------------------------------------------
-  # --- Consider each value that occurs 5 or more times, in order of currently -
-  # --- most present on the grid to least present. For each value v, consider --
-  # --- the boxes b where v has not yet been filled in. ------------------------
-  # ----------------------------------------------------------------------------
+  ### Strategies ###
+
+  #### Grid Scan ####
+  # Considers each value that occurs 5 or more times, in order of currently most
+  # present on the grid to currently least present (pre-computed, so adding new
+  # values will not affect the order values are iterated through; this is
+  # roughly similar to what a real person would do, as they would basically look
+  # over the grid once, then start looking through values, keeping a mental list
+  # of what values they'd already tried and not returning back to them). For
+  # each value v, consider the boxes b where v has not yet been filled in.
 
   # Get the list of values in order of their occurrences, and start the main
   # value loop.
@@ -384,27 +404,36 @@ class Solver
         @prev_results[@prev_results.length-1].success = @updated
       setTimeout(callback, delay)
 
+  # A heuristic for whether Grid Scan should be run.
   should_gridscan: ->
-    # for now, will only run gridscan if the last operation was gridscan and it
-    # worked. this reflects how I use it mainly in the beginning of a puzzle.
+    # For now, will only run gridscan if the last operation was gridscan and it
+    # worked. This reflects how I use it mainly in the beginning of a puzzle.
     return true if @prev_results.length == 0
 
     last_result = @prev_results[@prev_results.length-1]
     last_result.strat == "GridScan" and last_result.success
 
-  # SmartGridScan --------------------------------------------------------------
-  # ----------------------------------------------------------------------------
-  # --- Consider each value, in order of currently most present on the grid to -
-  # --- least present. For each value v, consider each box b where v has not ---
-  # --- yet been filled in. Let p be the set of positions where v can be -------
-  # --- placed within b. If p is a single position, then fill in v at this -----
-  # --- position (note that this is extremely similar to GridScan in this ------
-  # --- case). If all the positions in p are in a single row or col, then add --
-  # --- a restriction of v to all other cells in the row or col but outside of -
-  # --- b. NOTE: This is entirely a knowledge refinement strategy (except in ---
-  # --- the case where it is exactly GridScan), because adding a restriction ---
-  # --- won't affect anything until ExhaustionSearch is run. -------------------
-  # ----------------------------------------------------------------------------
+
+  #### Smart Grid Scan ####
+  # Consider each value, in order of currently most present on the grid to least
+  # present (as above, with the order pre-computed). For each value v, consider
+  # each box b where v has not yet been filled in. Let p be the set of positions
+  # where v can be placed within b. If p is a single position, then fill in v at
+  # this position (note that this is extremely similar to GridScan in this
+  # case). If all the positions in p are in a single row or col, then add a
+  # restriction of v to all other cells in the row or col but outside of
+  # b.
+  #
+  # NOTE: This is mostly a knowledge refinement strategy, and the goal is to
+  # only add a couple restrictions here and there, which would then be picked up
+  # by ExhaustionSearch, but we will also fill in some values which Grid Scan
+  # would not pick up (since we will consider something more strict than naively
+  # impossible values).
+  #
+  # FIXME actually consider something mroe strict than naively impossible
+  # vaules, and also completely restructure this: should only store restrictions
+  # if a set of restrictions already exists, and something like Exhaustion
+  # Search should instead create them initially.
 
   # Get the list of values in order of their occurrences, and start the main
   # value loop.
@@ -500,6 +529,7 @@ class Solver
 
     setTimeout(callback, delay)
 
+  # Heuristic for whether Smart Grid Scan should be performed.
   should_smartgridscan: ->
     # Should do a smart gridscan if the last attempt at gridscan failed. this
     # should work because gridscan is always run first, so there should always
@@ -510,15 +540,11 @@ class Solver
     return not @prev_results[last_gridscan].success
 
 
-
-  # ThinkInsideTheBox ----------------------------------------------------------
-  # ----------------------------------------------------------------------------
-  # --- For each box b and for each value v which has not yet been filled in ---
-  # --- within b, see where v could possibly be placed within b (consulting ----
-  # --- the values in corresponding rows/cols and any cant/must arrays filled --
-  # --- in within b); if v can only be placed in one position in b, then -------
-  # --- fill it in. ------------------------------------------------------------
-  # ----------------------------------------------------------------------------
+  #### Think Inside the Box ####
+  # For each box b and for each value v which has not yet been filled in within
+  # b, see where v could possibly be placed within b (consulting th evalues in
+  # corresponding rows/cols and any cant/must arrays filled in within b); if v
+  # can only be placed in one position in b, then fill it in.
 
   # Get a list of boxes and begin the main loop through the box list.
   ThinkInsideTheBox: ->
@@ -587,6 +613,7 @@ class Solver
         @prev_results[@prev_results.length-1].success = @updated
       setTimeout(callback, delay)
 
+  # Heuristic for whether Think Inside the Box should be peformed.
   should_thinkinsidethebox: ->
     # do ThinkInsideTheBox unless the last attempt at ThinkInsideTheBox failed.
     last_thinkinside = -1
@@ -596,8 +623,11 @@ class Solver
 
 
 
-  # SOLVE LOOP ---------------------------------------------------------------
+  ### Solve Loop ###
 
+  # Choose a strategy, using the heuristic each strategy provides.
+  # FIXME should provide a weighting system based on previous success/failure of
+  # attempts at strategies.
   choose_strategy: ->
     if @should_gridscan()
       @prev_results.push {strat: "GridScan"}

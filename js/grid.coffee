@@ -4,7 +4,7 @@
 # [solver.coffee] contains everything that operates on the grid but represents
 # human-level inference.
 
-## Import statements
+## Import Statements ##
 
 root = exports ? this
 
