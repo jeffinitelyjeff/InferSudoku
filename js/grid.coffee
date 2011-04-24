@@ -36,16 +36,11 @@ class Grid
 
   ### Mutator Methods ###
 
-  # Set a cell specified by a base index to a value. Also handles animation to
-  # highlight the cell.
+  # Set a cell specified by a base index to a value. Does not update the DOM
+  # representation of the array, as we pre-compute the solution to the grid and
+  # then process the solution to display the steps.
   set: (i, v) ->
-    # store in Grid's internal representation.
     @base_array[i] = v
-
-    # change value in DOM and highlight if setting to a non-blank space.
-    [x,y] = util.base_to_cart i
-
-    dom.set_input_val_and_highlight(x,y,v)
 
   # Set a cell specified by cartesian coordinates to a value.
   set_c: (x,y,v) ->

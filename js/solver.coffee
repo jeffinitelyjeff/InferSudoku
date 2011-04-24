@@ -103,38 +103,40 @@ class Solver
 
   ### Setting ###
 
-  # Wrapper for `@grid.set` which will update the knowledge base.
-  set: (i, v, callback) ->
+  # Wrapper for `@grid.set` which will update the knowledge base and fill in
+  # values if setting this value makes others obvious. Also requires a string
+  # specifying the strategy used to find this value, so that it can
+  # appropriately be stored in the record (this needs to be done in the set
+  # function since it recursively calls the `fill_obvious` functions).
+  set: (i, v, strat) ->
     @grid.set i,v
+    @record.push {type: "fill", idx: i, val: v, strat: strat}
+    log "Setting (#{util.base_to_cart(i)}) to #{v} by #{strat}"
 
     @occurrences[v] += 1
 
     [x,y] = util.base_to_cart i
     [b_x,b_y,s_x,s_y] = util.base_to_box i
 
-    fun =  ( =>
-      @fill_obvious_row(y, =>
-      @fill_obvious_col(x, =>
-      @fill_obvious_box(b_x, b_y, callback) ) ) )
-
-    setTimeout(fun, FILL_DELAY)
+    @fill_obvious_row(y)
+    @fill_obvious_col(x)
+    @fill_obvious_box(b_x, b_y)
 
   # Wrapper for `@grid.set_c` which will update the knowledge base if it needs
-  # to.
-  set_c: (x,y,v, callback) ->
-    @set(util.cart_to_base(x,y), v, callback)
+  # to and fill in values if setting this value makes others obvious.
+  set_c: (x,y,v,strat) ->
+    @set(util.cart_to_base(x,y), v, strat)
 
   # Wrapper for `@grid.set_b` which will update the knowldege base if it needs
-  # to.
-  set_b: (b_x, b_y, s_x, s_y, callback) ->
-    @set(util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)..., v, callback)
+  # to and fill in values if setting this value makes others obvious.
+  set_b: (b_x, b_y, s_x, s_y, strat) ->
+    @set(util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)..., v, strat)
 
   # If the specified group of indices has only one value missing, then will fill
   # in that value.
-  fill_obvious_group: (idxs, type, callback) ->
+  fill_obvious_group: (idxs, type) ->
     vals = (@grid.get(i) for i in idxs)
 
-    # Check if there are 8 values filled in.
     if util.num_pos(vals) == 8
       # Get the value which is missing.
       v = 1
@@ -145,27 +147,22 @@ class Solver
       i += 1 until @grid.get(idxs[i]) == 0
       idx = idxs[i]
 
-      log "Setting (#{util.base_to_cart(idx)}) to #{v} because it's" +
-          "#{type}-obvious"
-      @set(idx, v, callback)
-    # If there aren't 8 values filled in, then just call the callback.
-    else
-      callback()
+      @set(idx, v, "#{type}-obvious")
 
   # Calls `fill_obvious_group` for a row.
-  fill_obvious_row: (y, callback) ->
+  fill_obvious_row: (y) ->
     idxs = @grid.get_row_idxs(y)
-    @fill_obvious_group(idxs, "row", callback)
+    @fill_obvious_group(idxs, "row")
 
   # Calls `fill_obvious_group` for a col.
-  fill_obvious_col: (x, callback) ->
+  fill_obvious_col: (x) ->
     idxs = @grid.get_col_idxs(y)
-    @fill_obvious_group(idxs, "col", callback)
+    @fill_obvious_group(idxs, "col")
 
   # Calls `fill_obvious_group` for a box.
-  fill_obvious_box: (b_x, b_y, callback) ->
+  fill_obvious_box: (b_x, b_y) ->
     idxs = @grid.get_box_idxs(b_x, b_y)
-    @fill_obvious_group(idxs, "box", callback)
+    @fill_obvious_group(idxs, "box")
 
 
   ### Basic Logic ###
@@ -270,7 +267,8 @@ class Solver
     return first_box[0]+first_box[0]*3
 
 
-  ### Strategies ###
+  ### New Strategies ###
+
 
   #### Grid Scan ####
   # Considers each value that occurs 5 or more times, in order of currently most
@@ -281,98 +279,139 @@ class Solver
   # of what values they'd already tried and not returning back to them). For
   # each value v, consider the boxes b where v has not yet been filled in.
 
-  # Get the list of values in order of their occurrences, and start the main
-  # value loop.
-  GridScan: ->
-    @updated = false
+  gridScan: ->
+    @record.push {type: "strat", strat: "GridScan"}
+    @prev_results.push {strat: "GridScan", vals: 0, knowledge: 0}
+    result = _.last(@prev_results)
+    log "Trying Grid Scan"
 
     vals = @vals_by_occurrences_above_4()
 
-    if vals.length > 0
-      @GridScanValLoop(vals, 0)
+    for v in vals
+      @record.push {type: "gridscan-val", val: v}
+      log "GridScan examining value #{v}"
+
+      # Get the boxes which don't contain v.
+      boxes = []
+      boxes.push(b) if v not in @grid.get_box_vals(b) for b in [0..8]
+
+      for b in boxes
+        @record.push {type: "gridscan-box", box: b}
+        log "GridScan examining box #{b}"
+
+        ps = @naive_possible_positions_in_box v, b
+
+        if ps.length == 1
+          result.vals += 1
+          @set(ps[0], v, "gridScan")
+
+
+  #### Smart Grid Scan ####
+  # Consider each value, in order of currently most present on the grid to least
+  # present (as above, with the order pre-computed). For each value v, consider
+  # each box b where v has not yet been filled in. Let p be the set of positions
+  # where v can be placed within b. If p is a single position, then fill in v at
+  # this position (note that this is extremely similar to GridScan in this
+  # case). If all the positions in p are in a single row or col, then add a
+  # restriction of v to all other cells in the row or col but outside of
+  # b.
+  #
+  # NOTE: This is mostly a knowledge refinement strategy, and the goal is to
+  # only add a couple restrictions here and there, which would then be picked up
+  # by ExhaustionSearch, but we will also fill in some values which Grid Scan
+  # would not pick up (since we will consider something more strict than naively
+  # impossible values).
+  #
+  # FIXME: actually consider something mroe strict than naively impossible
+  # vaules, and also completely restructure this: should only store restrictions
+  # if a set of restrictions already exists, and something like Exhaustion
+  # Search should instead create them initially.
+
+
+
+
+  # A heurisitc for whether Grid Scan should be run. Will run Grid Scan if no
+  # other strategies have been tried, or if the last operation was a Grid Scan
+  # and it worked (meaning it set at least one value).
+  should_gridScan: ->
+    if @prev_results.length == 0
+      return true
     else
-      @prev_results[@prev_results.length-1].success = @updated
-      setTimeout(( => @solve_loop()), STRAT_DELAY)
+      last = _.last(@prev_results)
+      return last.strat == "GridScan" and last.num_set > 0
 
-  # For a specified value, get the boxes where that value has not yet been
-  # filled in. If there such boxes, then begin a box loop in the first of the
-  # boxes; if there are no such boxes, then either go to the next value or
-  # finish the strategy.
-  GridScanValLoop: (vs, vi) ->
-    log "GridScan examining value #{vs[vi]}"
+  choose_strategy: ->
+    # FIXME: should make this more complicated, maybe choose order to test based
+    # on how successful they've been so far?
 
-    v = vs[vi]
+    if @should_gridScan()
+      return @gridScan
 
-    boxes = []
-    # Get the boxes which don't contain v, which are the only ones we're
-    # considering for the strategy.
-    for b in [0..8]
-      boxes.push(b) if v not in @grid.get_box_vals(b)
+    if @should_thinkInsideTheBox()
+      @record.push {type: "strat", strat: "ThinkInsideTheBox"}
+      @prev_results.push {strat: "ThinkInsideTheBox",
+                          num_set: 0, knowledge_gained: 0}
+      log "Trying Think Inside the Box"
+      return @thinkInsideTheBox
 
-    # If there are possible boxes, then start iterating on them.
-    if boxes.length > 0
-      @GridScanBoxLoop(vs, vi, boxes, 0)
-    else
-      # If there are no possible boxes and there are more values, move to the
-      # next value.
-      if vi < vs.length - 1
-        @GridScanValLoop(vs, vi+1)
-      # If there are no possible boxes and there are no more values, then move
-      # to the next strategy.
-      else
-        @prev_results[@prev_results.length-1].success = @updated
-        setTimeout(( => @solve_loop()), STRAT_DELAY)
+    if @should_smartGridScan()
+      @record.push {type: "strat", strat: "SmartGridScan"}
+      @prev_results.push {strat: "SmartGridScan",
+                          num_set: 0, knowledge_gained: 0}
+      log "Trying Smart Grid Scan"
+      return @smartGridScan
 
-  # For a specified value and box, see where the value is possible in the
-  # box. If the value is only possible in one position, then fill it in. Move
-  # on to the next box if there are more boxes; move on to the next value if
-  # there are no more boxes and there are more values; move on to the next
-  # strategy if there are n omroe boxes or values.
-  GridScanBoxLoop: (vs, vi, bs, bi) ->
-    log "GridScan examining value #{vs[vi]} in box #{bs[bi]}"
+    # FIXME
+    # if @should_thinkOutsideTheBox()
+    # if @should_exhaustionSearch()
+    # if @should_desperationSearch()
 
-    v = vs[vi]
-    b = bs[bi]
+  # Solves the grid and returns an array of steps used to animate those steps.
+  solve: ->
+    @record = []
+    @strat_results = []
+    iter = 1
 
-    ps = @naive_possible_positions_in_box v, b
+    until @grid.is_solved() or @solve_iter > max_solve_iter
+      strat = @choose_strategy()
+      strat()
 
-    next_box =   => @GridScanBoxLoop(vs, vi, bs, bi+1)
-    next_val =   => @GridScanValLoop(vs, vi+1)
-    next_strat = => @solve_loop()
+    log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
 
-    # Go to the next box if there are more boxes.
-    if bi < bs.length - 1
-      callback = next_box
-      delay = 0
-    # Go to the next value if there are no more boxes, but more values.
-    else if vi < vs.length - 1
-      callback = next_val
-      delay = 0
-    # Go to the next strategy if there are no more values or boxes.
-    else
-      callback = next_strat
-      delay = STRAT_DELAY
+    dom.solve_done_animate()
 
-    if ps.length == 1
-      log "Setting (#{util.base_to_cart ps[0]}) to #{v} by GridScan"
-      @set(ps[0], v, =>
-        @updated = true
-        delay += FILL_DELAY
-        setTimeout(callback, delay))
-    else
-      if callback == next_strat
-        @prev_results[@prev_results.length-1].success = @updated
-      setTimeout(callback, delay)
 
-  # A heuristic for whether Grid Scan should be run.
-  should_gridscan: ->
-    # For now, will only run gridscan if the last operation was gridscan and it
-    # worked. This reflects how I use it mainly in the beginning of a puzzle.
-    return true if @prev_results.length == 0
 
-    last_result = @prev_results[@prev_results.length-1]
-    last_result.strat == "GridScan" and last_result.success
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ### Strategies ###
 
   #### Smart Grid Scan ####
   # Consider each value, in order of currently most present on the grid to least
