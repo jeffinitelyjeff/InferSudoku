@@ -165,7 +165,7 @@ class Solver
 
   # Calls `fill_obvious_group` for a col.
   fill_obvious_col: (x) ->
-    idxs = @grid.get_col_idxs(y)
+    idxs = @grid.get_col_idxs(x)
     @fill_obvious_group(idxs, "col")
 
   # Calls `fill_obvious_group` for a box.
@@ -433,17 +433,9 @@ class Solver
       return @gridScan
 
     if @should_thinkInsideTheBox()
-      @record.push {type: "strat", strat: "ThinkInsideTheBox"}
-      @prev_results.push {strat: "ThinkInsideTheBox",
-                          num_set: 0, knowledge_gained: 0}
-      log "Trying Think Inside the Box"
       return @thinkInsideTheBox
 
     if @should_smartGridScan()
-      @record.push {type: "strat", strat: "SmartGridScan"}
-      @prev_results.push {strat: "SmartGridScan",
-                          num_set: 0, knowledge_gained: 0}
-      log "Trying Smart Grid Scan"
       return @smartGridScan
 
     # FIXME
