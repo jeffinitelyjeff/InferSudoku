@@ -188,6 +188,12 @@ class Solver
         concat(@grid.get_col_vals_of(i)).
           concat(@grid.get_box_vals_of(i))
 
+  # FIXME!
+  informed_impossible_values: (i) ->
+
+  # FIXME!
+  informed_possible_positions_in_box: (v, x, y) ->
+
   # Iets a list of positions in a specified box where v can be filled in based
   # on `naive_impossible_values`. The box can be specified either as (x,y) in
   # [0..2]x[0..2] or with a single index in [0..8]. Positions are returned as
@@ -314,6 +320,14 @@ class Solver
           result.vals += 1
           @set(ps[0], v, "gridScan")
 
+  # Run Grid Scan if no other strategies have been tried, or if the last
+  # operation was a Grid Scan and it worked (meaning it set at least one value).
+  should_gridScan: ->
+    if @prev_results.length == 0
+      return true
+    else
+      last = _.last(@prev_results)
+      return last.strat == "GridScan" and last.vals > 0
 
   #### Smart Grid Scan ####
   # Consider each value, in order of currently most present on the grid to least
@@ -388,21 +402,28 @@ class Solver
     return @prev_results[last_gs].vals == 0 and not @update_since(last_sgs)
 
 
+  #### Think Inside the Box ####
+  # For each box b and for each value v which has not yet been filled in within
+  # b, see where v could possibly be placed within b (consulting th evalues in
+  # corresponding rows/cols and any cant/must arrays filled in within b); if v
+  # can only be placed in one position in b, then fill it in.
 
+  thinkInsideTheBox: ->
+    @record.push {type: "strat", strat: "thinkInsideTheBox"}
+    @prev_results.push {strat: "thinkInsideTheBox", vals: 0, knowledge: 0}
+    result = _.last(@prev_results)
+    log "Trying Think Inside the Box"
 
+    for b in [0..8]
+      vals = _.without([1..9], @grid.get_box_vals(b)...)
 
+      for v in vals
+        ps = @naive_possible_positions_in_box v, b
 
+        if ps.length == 1
+          result.vals += 1
+          @set(ps[0], v, "thinkInsideTheBox")
 
-
-  # A heurisitc for whether Grid Scan should be run. Will run Grid Scan if no
-  # other strategies have been tried, or if the last operation was a Grid Scan
-  # and it worked (meaning it set at least one value).
-  should_gridScan: ->
-    if @prev_results.length == 0
-      return true
-    else
-      last = _.last(@prev_results)
-      return last.strat == "GridScan" and last.num_set > 0
 
   choose_strategy: ->
     # FIXME: should make this more complicated, maybe choose order to test based
@@ -444,303 +465,6 @@ class Solver
 
     dom.solve_done_animate()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  ### Strategies ###
-
-  #### Smart Grid Scan ####
-  # Consider each value, in order of currently most present on the grid to least
-  # present (as above, with the order pre-computed). For each value v, consider
-  # each box b where v has not yet been filled in. Let p be the set of positions
-  # where v can be placed within b. If p is a single position, then fill in v at
-  # this position (note that this is extremely similar to GridScan in this
-  # case). If all the positions in p are in a single row or col, then add a
-  # restriction of v to all other cells in the row or col but outside of
-  # b.
-  #
-  # NOTE: This is mostly a knowledge refinement strategy, and the goal is to
-  # only add a couple restrictions here and there, which would then be picked up
-  # by ExhaustionSearch, but we will also fill in some values which Grid Scan
-  # would not pick up (since we will consider something more strict than naively
-  # impossible values).
-  #
-  # FIXME: actually consider something mroe strict than naively impossible
-  # vaules, and also completely restructure this: should only store restrictions
-  # if a set of restrictions already exists, and something like Exhaustion
-  # Search should instead create them initially.
-
-  # Get the list of values in order of their occurrences, and start the main
-  # value loop.
-  SmartGridScan: ->
-    log "Trying SmartGridScan"
-
-    @updated = false
-
-    vals = @vals_by_occurrences()
-
-    @SmartGridValLoop(vals, 0)
-
-  # For a specified value, get the boxes where that value has not yet been
-  # filled in. If there are such boxes, then begin a box loop in the frsit of
-  # the boxes; if there are no such boxes, then either go to the next value or
-  # finish the strategy.
-  SmartGridValLoop: (vs, vi) ->
-    v = vs[vi]
-
-    boxes = []
-    # Get the boxes which don't contain v, which are the only ones we're
-    # considering for this startegy.
-    for b in [0..8]
-      boxes.push(b) if v not in @grid.get_box_vals(b)
-
-    # If there are possible boxes, then start iterating on them.
-    if boxes.length > 0
-      @SmartGridBoxLoop(vs, vi, boxes, 0)
-    # If there are no more possible boxes, then move on to the next value or the
-    # next strategy.
-    else
-      # If there are more values, move to the next value.
-      if vi < vs.length - 1
-        @SmartGridValLoop(vs, vi+1)
-      # If there are no more values, move to the next strategy.
-      else
-        @prev_results[@prev_results.length-1].success = @updated
-        setTimeout(( => @solve_loop()), STRAT_DELAY)
-
-  # For a specified value and box, see where the values is possible in the
-  # box. If the value is only possible in one position, then fill it in (like
-  # normal GridScan). If it's possible in two or three positions, and those
-  # positions happen to be in the same rows or cols, then will add restrictions
-  # to all the other cells in the same row/col outside the box. Move on to the
-  # next box if there are more boxes; move on to the next value if there are no
-  # more boxes and there are more values; move on to the next strategy if there
-  # are no more boxes or values.
-  SmartGridBoxLoop: (vs, vi, bs, bi) ->
-    v = vs[vi]
-    b = bs[bi]
-
-    ps = @naive_possible_positions_in_box v, b
-
-    next_box = ( => @SmartGridBoxLoop(vs, vi, bs, bi+1) )
-    next_val = ( => @SmartGridValLoop(vs, vi+1) )
-    next_strat = ( => @solve_loop() )
-
-    # Go to the next box if there are more boxes.
-    if bi < bs.length - 1
-      callback = next_box
-      delay = 0
-    # Go to the next value if there are no more boxes, but more values.
-    else if vi < vs.length - 1
-      callback = next_val
-      delay = 0
-    # Go to the next strategy if there are no more values or boxes.
-    else
-      callback = next_strat
-      delay = STRAT_DELAY
-
-    switch ps.length
-      when 1
-        log "Setting (#{util.base_to_cart ps[0]}) to #{v} by SmartGridScan"
-        @set(ps[0], v, =>
-          @updated = true
-          delay += FILL_DELAY)
-      when 2,3
-        just_updated = false
-        if @same_row(ps)
-          y = @same_row(ps)
-          for x in [0..8]
-            i = util.cart_to_base(x,y)
-            unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
-              just_updated = @add_restriction(i,v)
-        else if @same_col(ps)
-          x = @same_col(ps)
-          for y in [0..8]
-            i = util.cart_to_base(x,y)
-            unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
-              just_updated = @add_restriction(i,v)
-        log "Refining knowldege base using SmartGridScan" if just_updated
-        @updated ||= just_updated
-
-    setTimeout(callback, delay)
-
-  # Heuristic for whether Smart Grid Scan should be performed.
-  should_smartgridscan: ->
-    # Should do a smart gridscan if the last attempt at gridscan failed. this
-    # should work because gridscan is always run first, so there should always
-    # be previous strategies with gridscan among them.
-    last_gridscan = -1
-    _.each(@prev_results, (result, i) ->
-      last_gridscan = i if result.strat == "GridScan" )
-    return not @prev_results[last_gridscan].success
-
-
-  #### Think Inside the Box ####
-  # For each box b and for each value v which has not yet been filled in within
-  # b, see where v could possibly be placed within b (consulting th evalues in
-  # corresponding rows/cols and any cant/must arrays filled in within b); if v
-  # can only be placed in one position in b, then fill it in.
-
-  # Get a list of boxes and begin the main loop through the box list.
-  ThinkInsideTheBox: ->
-    @updated = false
-
-    boxes = [0..8]
-
-    @ThinkInsideBoxLoop(boxes, 0)
-
-  # Get the list of values which have not yet been filled in within the current
-  # box, and begin a loop through those values.
-  ThinkInsideBoxLoop: (bs, bi) ->
-    filled = @grid.get_box_vals bs[bi]
-    vals = _.without([1..9], filled...)
-
-    # If there are unfilled values, then start iterating on them
-    if vals.length > 0
-      @ThinkInsideValLoop(bs, bi, vals, 0)
-    else
-      # If there are no unfilled values and there are more boxes to consider,
-      # then move on to the next box.
-      if bi < bs.length - 1
-        @ThinkInsideBoxLoop(bs, bi+1)
-      # If there are no unfilled values and there are no more boxes to consider,
-      # then go to the next strategy.
-      else
-        @prev_results[@prev_results.length-1].success = @updated
-        setTimeout(( => @solve_loop()), STRAT_DELAY)
-
-  # See where the current value can be placed within the current box. If the
-  # value is only possible in one position, then fill it in. Move on to the next
-  # value if there are more values; move on to the next box if thre are no more
-  # values and there are more boxes; move on to the next strategy if there are
-  # no more values or boxes.
-  ThinkInsideValLoop: (bs, bi, vs, vi) ->
-    v = vs[vi]
-    b = bs[bi]
-
-    ps = @naive_possible_positions_in_box v, b
-
-    next_val = ( => @ThinkInsideValLoop(bs, bi, vs, vi+1) )
-    next_box = ( => @ThinkInsideBoxLoop(bs, bi+1) )
-    next_strat = ( => @solve_loop() )
-
-    # Go to the next value if there are more values.
-    if vi < vs.length - 1
-      callback = next_val
-      delay = 0
-    # Go to the next box if there are no more values, but more boxes.
-    else if bi < bs.length - 1
-      callback = next_box
-      delay = 0
-    # Go to the next strategy if there are no more boxes or values.
-    else
-      callback = next_strat
-      delay = STRAT_DELAY
-
-    if ps.length == 1
-      log "Setting (#{util.base_to_cart ps[0]}) to #{v} by ThinkInsideTheBox"
-      @set(ps[0], v, =>
-        @updated = true
-        delay += FILL_DELAY
-        setTimeout(callback, delay))
-    else
-      if callback == next_strat
-        @prev_results[@prev_results.length-1].success = @updated
-      setTimeout(callback, delay)
-
-  # Heuristic for whether Think Inside the Box should be peformed.
-  should_thinkinsidethebox: ->
-    # Do ThinkInsideTheBox unless the last attempt at ThinkInsideTheBox failed.
-    last_thinkinside = -1
-    _.each(@prev_results, (result, i) ->
-      last_thinkinside = i if result.strat == "ThinkInsideTheBox" )
-    return last_thinkinside == -1 or @prev_results[last_thinkinside].success
-
-
-
-  ### Solve Loop ###
-
-  # Choose a strategy, using the heuristic each strategy provides.
-  # FIXME should provide a weighting system based on previous success/failure of
-  # attempts at strategies.
-  choose_strategy: ->
-    if @should_gridscan()
-      @prev_results.push {strat: "GridScan"}
-      dom.announce_strategy "GridScan"
-      log "Trying GridScan"
-      return @GridScan()
-
-    if @should_thinkinsidethebox()
-      @prev_results.push {strat: "ThinkInsideTheBox"}
-      dom.announce_strategy "ThinkInside<br />TheBox"
-      log "Trying ThinkInsideTheBox"
-      return @ThinkInsideTheBox()
-
-    if @should_smartgridscan()
-      @prev_results.push {strat: "SmartGridSCan"}
-      dom.announce_strategy "SmartGridScan"
-      log "Trying ThinkInsideTheBox"
-      return @SmartGridScan()
-
-    # FIXME
-
-    # if @should_thinkoutsidethebox()
-    #   return @ThinkOutsideTheBox()
-
-    # if @should_exhaustionsearch()
-    #   return @ExhaustionSearch()
-
-    # if @should_desperationsearch()
-    #   return @DesperationSearch()
-
-  solve_loop: ->
-    @solve_iter += 1
-    log "iteration #{@solve_iter}"
-
-    # Stop if the grid is complete or we've done too many iterations.
-    done = @grid.is_solved() or @solve_iter > max_solve_iter
-
-    if done
-      @solve_loop_done()
-    else
-      @choose_strategy()
-
-
-  solve_loop_done: ->
-    log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
-
-    dom.solve_done_animate()
-
-  solve: ->
-    @solve_loop()
 
 
 ## Wrap Up ##
