@@ -64,6 +64,11 @@ class Solver
   prev_strats: ->
     strats = (@prev_results[i].strat for i in [0...@prev_results.length])
 
+  # Return whether a particular strategy result was a success (ie, if it filled
+  # in any values or updated the knowldege base at all).
+  success: (strat_result) ->
+    strat_result.vals > 0 or strat_result.knowledge > 0
+
   # See if any of the strategies from the specified index onwards have been
   # successful.
   update_since: (idx) ->
@@ -199,14 +204,15 @@ class Solver
   # [0..2]x[0..2] or with a single index in [0..8]. Positions are returned as
   # base indices of the grid.
   naive_possible_positions_in_box: (v, x, y) ->
-    unless y?
-      y = Math.floor x / 3
-      x = Math.floor x % 3
+    if y?
+      [nx, ny] = [x, y]
+    else
+      [nx, ny] = [Math.floor(x/3), Math.floor(x%3)]
 
     ps = []
     for b in [0..2]
       for a in [0..2]
-        i = util.box_to_base x,y,a,b
+        i = util.box_to_base nx,ny,a,b
         ps.push(i) unless v in @naive_impossible_values(i)
 
     return ps
@@ -425,18 +431,28 @@ class Solver
           @set(ps[0], v, "thinkInsideTheBox")
 
 
+  # Run Think Inside the Box unless the last attempt failed.
+  should_thinkInsideTheBox: ->
+    last = -1
+    _.each(@prev_results, (result, i) ->
+      last = i if result.strat == "ThinkInsideTheBox" )
+    return last == -1 or success(@prev_results[last])
+
+
+
+
   choose_strategy: ->
     # FIXME: should make this more complicated, maybe choose order to test based
     # on how successful they've been so far?
 
     if @should_gridScan()
-      return @gridScan
+      return @gridScan()
 
     if @should_thinkInsideTheBox()
-      return @thinkInsideTheBox
+      return @thinkInsideTheBox()
 
     if @should_smartGridScan()
-      return @smartGridScan
+      return @smartGridScan()
 
     # FIXME
     # if @should_thinkOutsideTheBox()
@@ -450,8 +466,8 @@ class Solver
     iter = 1
 
     until @grid.is_solved() or @solve_iter > max_solve_iter
-      strat = @choose_strategy()
-      strat()
+      @choose_strategy()
+
 
     log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
 
