@@ -9,6 +9,7 @@ max_solve_iter = root.max_solve_iter
 util = root.util
 dom = root.dom
 log = dom.log
+debug = dom.debug
 
 ## Solver Class ##
 
@@ -207,7 +208,7 @@ class Solver
     if y?
       [nx, ny] = [x, y]
     else
-      [nx, ny] = [Math.floor(x/3), Math.floor(x%3)]
+      [nx, ny] = [Math.floor(x%3), Math.floor(x/3)]
 
     ps = []
     for b in [0..2]
@@ -306,25 +307,25 @@ class Solver
     result = _.last(@prev_results)
     log "Trying Grid Scan"
 
+    # Iterate through each value occuring 5 or more times, from most prevalent
+    # to least prevalent.
     vals = @vals_by_occurrences_above_4()
-
     for v in vals
       @record.push {type: "gridscan-val", val: v}
-      log "Grid Scan examining value #{v}"
+      debug "- Grid Scan examining value #{v}"
 
-      # Get the boxes which don't contain v.
-      boxes = []
-      boxes.push(b) if v not in @grid.get_box_vals(b) for b in [0..8]
+      # Iterate through each box which v does not occur in.
+      for b in [0..8]
+        if v not in @grid.get_box_vals(b)
+          @record.push {type: "gridscan-box", box: b}
+          debug "-- Grid Scan examining box #{b}"
 
-      for b in boxes
-        @record.push {type: "gridscan-box", box: b}
-        log "Grid Scan examining box #{b}"
+          ps = @naive_possible_positions_in_box v, b
 
-        ps = @naive_possible_positions_in_box v, b
+          if ps.length == 1
+            result.vals += 1
+            @set(ps[0], v, "gridScan")
 
-        if ps.length == 1
-          result.vals += 1
-          @set(ps[0], v, "gridScan")
 
   # Run Grid Scan if no other strategies have been tried, or if the last
   # operation was a Grid Scan and it worked (meaning it set at least one value).
@@ -366,7 +367,7 @@ class Solver
 
     for v in vals
       @record.push {type: "smartgridscan-val", val: v}
-      log "Smart Grid Scan examining value #{v}"
+      debug "- Smart Grid Scan examining value #{v}"
 
       # Get the boxes which don't contain v.
       boxes = []
@@ -374,7 +375,7 @@ class Solver
 
       for b in boxes
         @record.push {type: "smartgridscan-box", box: b}
-        log "Smart Grid Scan examining box #{b}"
+        debug "-- Smart Grid Scan examining box #{b}"
 
         ps = @informed_possible_positions_in_box v, b
 
@@ -385,12 +386,14 @@ class Solver
           when 2,3
             if @same_row(ps)
               y = @same_row(ps)
+              debug "--- Smart Grid Scan found positions all in the same row, #{y}"
               for x in [0..8]
                 i = util.cart_to_base x,y
                 unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
                   result.knowledge += 1 if @add_restriction(i,v)
             else if @same_col(ps)
               x = @same_col(ps)
+              debug "--- Smart Grid Scan found positions all in the same col, #{x}"
               for y in [0..8]
                 i = util.cart_to_base x,y
                 unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
@@ -421,9 +424,11 @@ class Solver
     log "Trying Think Inside the Box"
 
     for b in [0..8]
+      debug "- Think Inside the Box examining box #{b}"
       vals = _.without([1..9], @grid.get_box_vals(b)...)
 
       for v in vals
+        debug "-- Think Inside the Box examining value #{v}"
         ps = @naive_possible_positions_in_box v, b
 
         if ps.length == 1

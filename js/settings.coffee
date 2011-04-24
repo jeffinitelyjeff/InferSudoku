@@ -19,3 +19,6 @@ root.HIGHLIGHT_DURATION = 500
 
 # Time it takes for a highlighted cell to fade out.
 root.HIGHLIGHT_FADEOUT_TIME = 500
+
+
+root.DEBUG = false

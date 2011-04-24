@@ -23,6 +23,11 @@ root.dom =
     t.scrollTop(9999999)
     return s
 
+  # Debug is a wrapper for `log` which will only run `log` if the `debug`
+  # setting is true.
+  debug: (s) ->
+    root.dom.log(s) if root.DEBUG
+
   ## JQuery Selectors ##
 
   # Returns a selector for the cell specified in cartesian coordinates.
@@ -204,15 +209,17 @@ root.dom =
   # solve button, and then fade in the strategy display.
   solve_b_animate: (callback) ->
     strat_options = {opacity: 1, top: '-=75px'}
-    strat_animate = ->
-      $("#strat").animate(strat_options, 250, 'easeInQuad', callback)
     solve_options = {opacity: 0, top: '+=50px'}
-    solve_animate = (c) ->
-      $("#solve-b").animate(solve_options, 250, 'easeOutQuad', strat_animate)
+
+    animate_solve = ->
+      $("#solve-b").animate(solve_options, 250, 'easeOutQuad', animate_strat)
+    animate_strat = ->
+      $("#strat").html("Computing...")
+      $("#strat").animate(strat_options, 250, 'easeInQuad', callback)
 
     $("#solve-b").click ->
       $("#solve-b, #input-b, input.num").attr('disabled', true)
-      solve_animate()
+      animate_solve()
 
   solve_done_animate: ->
     strat_options = {opacity: 0, top: '+=75px'}
