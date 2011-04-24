@@ -64,6 +64,15 @@ class Solver
   prev_strats: ->
     strats = (@prev_results[i].strat for i in [0...@prev_results.length])
 
+  # See if any of the strategies from the specified index onwards have been
+  # successful.
+  update_since: (idx) ->
+    results = _.rest(@prev_results, idx)
+
+    for result in results
+      return true if result.vals > 0 or result.knowledge > 0
+    return false
+
   # Adds a restriction of value v to cell with base index i. Returns whether the
   # restriction was useful information (ie, if the restriction wasn't already in
   # the database of restrictions)
@@ -280,8 +289,8 @@ class Solver
   # each value v, consider the boxes b where v has not yet been filled in.
 
   gridScan: ->
-    @record.push {type: "strat", strat: "GridScan"}
-    @prev_results.push {strat: "GridScan", vals: 0, knowledge: 0}
+    @record.push {type: "strat", strat: "gridScan"}
+    @prev_results.push {strat: "gridScan", vals: 0, knowledge: 0}
     result = _.last(@prev_results)
     log "Trying Grid Scan"
 
@@ -289,7 +298,7 @@ class Solver
 
     for v in vals
       @record.push {type: "gridscan-val", val: v}
-      log "GridScan examining value #{v}"
+      log "Grid Scan examining value #{v}"
 
       # Get the boxes which don't contain v.
       boxes = []
@@ -297,7 +306,7 @@ class Solver
 
       for b in boxes
         @record.push {type: "gridscan-box", box: b}
-        log "GridScan examining box #{b}"
+        log "Grid Scan examining box #{b}"
 
         ps = @naive_possible_positions_in_box v, b
 
@@ -322,10 +331,65 @@ class Solver
   # would not pick up (since we will consider something more strict than naively
   # impossible values).
   #
-  # FIXME: actually consider something mroe strict than naively impossible
+  # FIXME: actually consider something more strict than naively impossible
   # vaules, and also completely restructure this: should only store restrictions
   # if a set of restrictions already exists, and something like Exhaustion
   # Search should instead create them initially.
+
+  smartGridScan: ->
+    @record.push {type: "strat", strat: "smartGridScan"}
+    @prev_results.push {strat: "smartGridScan", vals: 0, knowledge: 0}
+    result = _.last(@prev_results)
+    log "Trying Smart Grid Scan"
+
+    vals = @vals_by_occurrences()
+
+    for v in vals
+      @record.push {type: "smartgridscan-val", val: v}
+      log "Smart Grid Scan examining value #{v}"
+
+      # Get the boxes which don't contain v.
+      boxes = []
+      boxes.push(b) if v not in @grid.get_box_vals(b) for b in [0..8]
+
+      for b in boxes
+        @record.push {type: "smartgridscan-box", box: b}
+        log "Smart Grid Scan examining box #{b}"
+
+        ps = @informed_possible_positions_in_box v, b
+
+        switch ps.length
+          when 1
+            result.vals += 1
+            @set(ps[0], v, "gridScan")
+          when 2,3
+            if @same_row(ps)
+              y = @same_row(ps)
+              for x in [0..8]
+                i = util.cart_to_base x,y
+                unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
+                  result.knowledge += 1 if @add_restriction(i,v)
+            else if @same_col(ps)
+              x = @same_col(ps)
+              for y in [0..8]
+                i = util.cart_to_base x,y
+                unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
+                  result.knowledge += 1 if @add_restriction(i,v)
+
+  # Run Smart Grid Scan if the last attempt at Grid Scan failed, unless there
+  # hasn't been any new info since the last attempt at Smart Grid Scan.
+  should_smartGridScan: ->
+    last_gs = -1
+    _.each(@prev_result, (result, i) ->
+      last_gs = i if result.strat == "gridScan" )
+    last_sgs = -1
+    _.each(@prev_results, (result, i) ->
+      last_sgs = i if result.strat == "smartGridScan" )
+    return @prev_results[last_gs].vals == 0 and not @update_since(last_sgs)
+
+
+
+
 
 
 
