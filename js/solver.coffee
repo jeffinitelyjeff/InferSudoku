@@ -159,7 +159,7 @@ class Solver
 
   # Calls `fill_obvious_group` for a col.
   fill_obvious_col: (x, callback) ->
-    idxs = @grid.get_col_idxs(y)
+    idxs = @grid.get_col_idxs(x)
     @fill_obvious_group(idxs, "col", callback)
 
   # Calls `fill_obvious_group` for a box.
