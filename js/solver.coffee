@@ -1,6 +1,6 @@
 root = exports ? this
 
-## Import Statements ##
+## Import Statements
 
 FILL_DELAY = root.FILL_DELAY
 STRAT_DELAY = root.STRAT_DELAY
@@ -13,7 +13,7 @@ log = dom.log
 ## Solver Class ##
 
 class Solver
-  constructor: (@grid, why) ->
+  constructor: (@grid) ->
 
     # A Solver is constructed once every time the solve button is hit, so all
     # the relevant parameters are set to their defaults here.
@@ -103,7 +103,7 @@ class Solver
 
   ### Setting ###
 
-  # wrapper for @grid.set which will update the knowledge base.
+  # Wrapper for `@grid.set` which will update the knowledge base.
   set: (i, v, callback) ->
     @grid.set i,v
 
@@ -119,92 +119,61 @@ class Solver
 
     setTimeout(fun, FILL_DELAY)
 
-  # wrapper for @grid.set_c which will update the knowledge base if it needs to.
+  # Wrapper for `@grid.set_c` which will update the knowledge base if it needs
+  # to.
   set_c: (x,y,v, callback) ->
     @set(util.cart_to_base(x,y), v, callback)
 
-  # wrapper for @grid.set_b which will update the knowldege base if it needs to.
+  # Wrapper for `@grid.set_b` which will update the knowldege base if it needs
+  # to.
   set_b: (b_x, b_y, s_x, s_y, callback) ->
     @set(util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)..., v, callback)
 
-  # if the specified row only has one value missing, then will fill in that value.
-  fill_obvious_row: (y, callback) ->
-    vals = @grid.get_row_vals y
+  # If the specified group of indices has only one value missing, then will fill
+  # in that value.
+  fill_obvious_group: (idxs, type, callback) ->
+    vals = (@grid.get(i) for i in idxs)
 
+    # Check if there are 8 values filled in.
     if util.num_pos(vals) == 8
-      # get the one missing value
+      # Get the value which is missing.
       v = 1
       v += 1 until v not in vals
 
-      # get the position missing it.
-      x = 0
-      x += 1 until @grid.get_c(x,y) == 0
-
-      log "Setting (#{x},#{y}) to #{v} because it's row-obvious"
-      @set_c(x,y,v, callback)
-    else
-      callback()
-
-  # if the specified col only has one value missing, then will fill in that
-  # value.
-  fill_obvious_col: (x, callback) ->
-    vals = @grid.get_col_vals x
-
-    if util.num_pos(vals) == 8
-      # get the one missing value
-      v = 1
-      v += 1 until v not in vals
-
-      # get the position missing it.
-      y = 0
-      y += 1 until @grid.get_c(x,y) == 0
-
-      log "Setting (#{x},#{y}) to #{v} becasue it's col-obvious"
-      @set_c(x,y,v, callback)
-    else
-      callback()
-
-  # if the specified box only has one value missing, then will fill in that
-  # value.
-  fill_obvious_box: (b_x, b_y, callback) ->
-    if b_y?
-      b = 3*b_y + b_x
-    else
-      b = b_x
-      b_x = Math.floor(b_x % 3)
-      b_y = Math.floor(b_y / 3)
-
-    vals = @grid.get_box_vals b
-
-    if util.num_pos(vals) == 8
-      # get the one missing value
-      v = 1
-      v += 1 until v not in vals
-
-      # get the list of indices in the box.
-      box_idxs = []
-      for j in [0..2]
-        for k in [0..2]
-          box_idxs.push util.box_to_base(b_x, b_y, k, j)
-
-      # get the position missing it.
+      # Get the position which is missing a value.
       i = 0
-      i += 1 until @grid.get(box_idxs[i]) == 0
+      i += 1 until @grid.get(idxs[i]) == 0
+      idx = idxs[i]
 
-      log "Setting (#{util.base_to_cart(box_idxs[i])}) to #{v} because it's" +
-      " box-obvious"
-      @set(box_idxs[i], v, callback)
+      log "Setting (#{util.base_to_cart(idx)}) to #{v} because it's" +
+          "#{type}-obvious"
+      @set(idx, v, callback)
+    # If there aren't 8 values filled in, then just call the callback.
     else
       callback()
+
+  # Calls `fill_obvious_group` for a row.
+  fill_obvious_row: (y, callback) ->
+    idxs = @grid.get_row_idxs(y)
+    @fill_obvious_group(idxs, "row", callback)
+
+  # Calls `fill_obvious_group` for a col.
+  fill_obvious_col: (x, callback) ->
+    idxs = @grid.get_col_idxs(y)
+    @fill_obvious_group(idxs, "col", callback)
+
+  # Calls `fill_obvious_group` for a box.
+  fill_obvious_box: (b_x, b_y, callback) ->
+    idxs = @grid.get_box_idxs(b_x, b_y)
+    @fill_obvious_group(idxs, "box", callback)
 
 
   ### Basic Logic ###
 
-  # get an array of all naively impossible values to fill into the cell at base
-  # index i in the grid. the impossible values are simply the values filled in
-  # to cells that share a row, col, or box with this cell. if the cell already
-  # has a value, then will return all other values; this seems a little
-  # unnecessary, but turns out to make other things cleaner.
+  # Get an array of all naively impossible values to fill into the cell at base
+  # index i in the grid. If the cell already has a value, then will return all
+  # other values; this seems a little unnecessary, but turns out to make other
+  # things cleaner.
   naive_impossible_values: (i) ->
     if @grid.get(i) > 0
       return _.without([1..9], @grid.get(i))
@@ -213,9 +182,9 @@ class Solver
         concat(@grid.get_col_vals_of(i)).
           concat(@grid.get_box_vals_of(i))
 
-  # gets a list of positions in a specified box where v can be filled in based
-  # on naive_impossible_values. the box is specified either as (x,y) in
-  # [0..2]x[0..2] or with a single index in [0..8]. positions are returned as
+  # Iets a list of positions in a specified box where v can be filled in based
+  # on `naive_impossible_values`. The box can be specified either as (x,y) in
+  # [0..2]x[0..2] or with a single index in [0..8]. Positions are returned as
   # base indices of the grid.
   naive_possible_positions_in_box: (v, x, y) ->
     unless y?
@@ -230,9 +199,10 @@ class Solver
 
     return ps
 
-  # gets a list of positions in a specified row where v can be filled in based
-  # on naive_impossible_values. the row is specified as a y-coordinate of
-  # cartesian coordinates, and positions are returned as base indices of the grid.
+  # Gets a list of positions in a specified row where v can be filled in based
+  # on `naive_impossible_values`. The row is specified as a y-coordinate of
+  # cartesian coordinates, and positions are returned as base indices of the
+  # grid.
   naive_possible_positions_in_row: (v, y) ->
     ps = []
     for x in [0..8]
@@ -241,8 +211,8 @@ class Solver
 
     return ps
 
-  # gets a list of positions in a specified col where v can be filled in based
-  # on naive_impossible_values. the row is specified as an x-coordinate of
+  # Gets a list of positions in a specified col where v can be filled in based
+  # on `naive_impossible_values`. The row is specified as an x-coordinate of
   # cartesian coordinates, and positions are returned as base indices of the grid.
   naive_possible_positions_in_col: (v, x) ->
     ps = []
@@ -252,8 +222,8 @@ class Solver
 
     return ps
 
-  # returns an array of values in order of the number of their occurrences,
-  # in order of most prevalent to least prevalent. only includes values which
+  # Returns an array of values in order of the number of their occurrences,
+  # in order of most prevalent to least prevalent. Only includes values which
   # occur 5 or more times.
   vals_by_occurrences_above_4: ->
     ord = []
@@ -262,6 +232,8 @@ class Solver
         ord.push(v) if @occurrences[v] == o
     return ord
 
+  # Returns an array of values in order of the number of their occurrences, in
+  # order of most prevalent to least prevalent.
   vals_by_occurrences: ->
     ord = []
     for o in [9..1]
@@ -269,44 +241,32 @@ class Solver
         ord.push(v) if @occurrences[v] == o
     return ord
 
-  # If the base indices are all in the same row, then returns that row;
-  # otherwise returns false.
+  # If the base indices are all in the same row, then returns the index of that
+  # row; otherwise returns false.
   same_row: (idxs) ->
     first_row = util.base_to_cart(idxs[0])[1]
     idxs = _.rest(idxs)
-
     for idx in idxs
-      # return false if one of the rows doesn't match the first.
       return false if util.base_to_cart(idx)[1] != first_row
-
-    # return true if they all match the first.
     return first_row
 
-  # If the base indices are all in the same column, then returns that col;
-  # otherwise returns false.
+  # If the base indices are all in the same column, then returns the index of
+  # that col; otherwise returns false.
   same_col: (idxs) ->
     first_col = util.base_to_cart(idxs[0])[0]
     idxs = _.rest(idxs)
-
     for idx in idxs
-      # return false if one of the cols doesn't match the first.
       return false if util.base_to_cart(idx)[0] != first_col
-
-    # return true if they all match the first
     return first_col
 
-  # If the base indices are all in the same box, then returns that box;
-  # otherwise returns false.
+  # If the base indices are all in the same box, then returns the index of that
+  # box; otherwise returns false.
   same_box: (idxs) ->
     first_box = util.base_to_box(idx[0])
     idxs = _.rest(idxs)
-
     for idx in idxs
-      # return false if one of the boxes doesn't match the first.
       box = util.base_to_box(idx)
       return false if box[0] != first_box[0] or box[1] != first_box[1]
-
-    # return true if they all match the first
     return first_box[0]+first_box[0]*3
 
 
@@ -344,22 +304,22 @@ class Solver
     v = vs[vi]
 
     boxes = []
-    # get the boxes which don't contain v, which are the only ones we're
-    # considering for the strategy
+    # Get the boxes which don't contain v, which are the only ones we're
+    # considering for the strategy.
     for b in [0..8]
       boxes.push(b) if v not in @grid.get_box_vals(b)
 
+    # If there are possible boxes, then start iterating on them.
     if boxes.length > 0
-      # if there are possible boxes, then start iterating on them.
       @GridScanBoxLoop(vs, vi, boxes, 0)
     else
+      # If there are no possible boxes and there are more values, move to the
+      # next value.
       if vi < vs.length - 1
-        # if there are no possible boxes and there are more values, move to the
-        # next value.
         @GridScanValLoop(vs, vi+1)
+      # If there are no possible boxes and there are no more values, then move
+      # to the next strategy.
       else
-        # if there are no possible boxes and there are no more values, then move
-        # to the next strategy
         @prev_results[@prev_results.length-1].success = @updated
         setTimeout(( => @solve_loop()), STRAT_DELAY)
 
@@ -380,16 +340,16 @@ class Solver
     next_val =   => @GridScanValLoop(vs, vi+1)
     next_strat = => @solve_loop()
 
+    # Go to the next box if there are more boxes.
     if bi < bs.length - 1
-      # go to the next box if there are more boxes.
       callback = next_box
       delay = 0
+    # Go to the next value if there are no more boxes, but more values.
     else if vi < vs.length - 1
-      # go to the next value if there are no more boxes, but more values.
       callback = next_val
       delay = 0
+    # Go to the next strategy if there are no more values or boxes.
     else
-      # go to the next strategy if there are no more values or boxes.
       callback = next_strat
       delay = STRAT_DELAY
 
@@ -430,7 +390,7 @@ class Solver
   # would not pick up (since we will consider something more strict than naively
   # impossible values).
   #
-  # FIXME actually consider something mroe strict than naively impossible
+  # FIXME: actually consider something mroe strict than naively impossible
   # vaules, and also completely restructure this: should only store restrictions
   # if a set of restrictions already exists, and something like Exhaustion
   # Search should instead create them initially.
@@ -454,22 +414,22 @@ class Solver
     v = vs[vi]
 
     boxes = []
-    # get the boxes which don't contain v, which are the only ones we're
+    # Get the boxes which don't contain v, which are the only ones we're
     # considering for this startegy.
     for b in [0..8]
       boxes.push(b) if v not in @grid.get_box_vals(b)
 
+    # If there are possible boxes, then start iterating on them.
     if boxes.length > 0
-      # if there are possible boxes, then start iterating on them.
       @SmartGridBoxLoop(vs, vi, boxes, 0)
+    # If there are no more possible boxes, then move on to the next value or the
+    # next strategy.
     else
+      # If there are more values, move to the next value.
       if vi < vs.length - 1
-        # if there are no possible boxes and there are more values, move to the
-        # next value.
         @SmartGridValLoop(vs, vi+1)
+      # If there are no more values, move to the next strategy.
       else
-        # if there are no possible boxes and there are no more values, then move
-        # to the next strategy.
         @prev_results[@prev_results.length-1].success = @updated
         setTimeout(( => @solve_loop()), STRAT_DELAY)
 
@@ -491,16 +451,16 @@ class Solver
     next_val = ( => @SmartGridValLoop(vs, vi+1) )
     next_strat = ( => @solve_loop() )
 
+    # Go to the next box if there are more boxes.
     if bi < bs.length - 1
-      # go to the next box if there are more boxes.
       callback = next_box
       delay = 0
+    # Go to the next value if there are no more boxes, but more values.
     else if vi < vs.length - 1
-      # go to the next value if there are no more boxes, but more values.
       callback = next_val
       delay = 0
+    # Go to the next strategy if there are no more values or boxes.
     else
-      # go to the next strategy if there are no more values or boxes.
       callback = next_strat
       delay = STRAT_DELAY
 
@@ -560,17 +520,17 @@ class Solver
     filled = @grid.get_box_vals bs[bi]
     vals = _.without([1..9], filled...)
 
+    # If there are unfilled values, then start iterating on them
     if vals.length > 0
-      # if there are unfilled values, then start iterating on them
       @ThinkInsideValLoop(bs, bi, vals, 0)
     else
+      # If there are no unfilled values and there are more boxes to consider,
+      # then move on to the next box.
       if bi < bs.length - 1
-        # if there are no unfilled values and there are more boxes to consider,
-        # then move on to the next box.
         @ThinkInsideBoxLoop(bs, bi+1)
+      # If there are no unfilled values and there are no more boxes to consider,
+      # then go to the next strategy.
       else
-        # if there are no unfilled values and there are no more boxes to
-        # consider, then go to the next strategy.
         @prev_results[@prev_results.length-1].success = @updated
         setTimeout(( => @solve_loop()), STRAT_DELAY)
 
@@ -589,16 +549,16 @@ class Solver
     next_box = ( => @ThinkInsideBoxLoop(bs, bi+1) )
     next_strat = ( => @solve_loop() )
 
+    # Go to the next value if there are more values.
     if vi < vs.length - 1
-      # go to the next value if there are more values.
       callback = next_val
       delay = 0
+    # Go to the next box if there are no more values, but more boxes.
     else if bi < bs.length - 1
-      # go to the next box if there are no more values, but more boxes.
       callback = next_box
       delay = 0
+    # Go to the next strategy if there are no more boxes or values.
     else
-      # go to the next strategy if there are no more boxes or values.
       callback = next_strat
       delay = STRAT_DELAY
 
@@ -615,7 +575,7 @@ class Solver
 
   # Heuristic for whether Think Inside the Box should be peformed.
   should_thinkinsidethebox: ->
-    # do ThinkInsideTheBox unless the last attempt at ThinkInsideTheBox failed.
+    # Do ThinkInsideTheBox unless the last attempt at ThinkInsideTheBox failed.
     last_thinkinside = -1
     _.each(@prev_results, (result, i) ->
       last_thinkinside = i if result.strat == "ThinkInsideTheBox" )
@@ -662,13 +622,12 @@ class Solver
     @solve_iter += 1
     log "iteration #{@solve_iter}"
 
-    # done if the grid is complete or we've done too many iterations
+    # Stop if the grid is complete or we've done too many iterations.
     done = @grid.is_solved() or @solve_iter > max_solve_iter
 
     if done
       @solve_loop_done()
     else
-      # fill obvious cells and then choose a strategy once complete
       @choose_strategy()
 
 
