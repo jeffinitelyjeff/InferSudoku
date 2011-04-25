@@ -16,57 +16,55 @@ log = dom.log
 debug = dom.debug
 
 ## Solver Class ##
+# A Solver object is constructed once every time the solve button is hit, so all
+# the relevant parameters are set to their defaults in the constructor.
+#
+# - `possibles`: An array for each base index marking the possible values that
+#   base index can take on. From the computer's perspective, this will basically
+#   just be a cache of the last call to `possible_values` (which is updated
+#   whenever new values are recorded), and in this respect it offers only a
+#   minor performance boost; the real point of it is to simulate the human
+#   process of recording a couple possible values when there are only a couple
+#   possible values.
+# - `clusters`: An array of arrays of arrays of arrays representing the
+#   positions available to fill in a particular value in a particularly indexed
+#   particular type of group (thus the three levels of indexing). Indexed first
+#   by type of group (row = 0, col = 1, box = 2), then by index of that group
+#   (0-8), then by value (1-9), at which point the resulting array is a list of
+#   possible positions (in base indices). For example, `@clusters[1][0][2]` may
+#   be `[0, 9]` indicating that column 0 has value 2 only possible in two
+#   indices, 0 and 9.
+# - `occurrences`: Tracks the number of occurrences of each value in the entire
+#   grid.
+#
+# - `record`: Tracks every important operation performed in order. Each object
+#   added to the record will have a `type` field indicating whta kind of
+#   operation (`"fill"`, `"start-strat"`, `"end-strat"`, and more detailed,
+#   strategy-specific operations). These operations will then be parsed in
+#   `dom.animate_solution`.
+#
+# -
 
 class Solver
   constructor: (@grid) ->
 
-    # A Solver is constructed once every time the solve button is hit, so all
-    # the relevant parameters are set to their defaults here.
+    @possibles = []
+    make_empty_possibles = -> []
+    @possibles = (make_empty_possibles() for i in [0...81])
 
-    # Restrictions are indexed first by cell index and then by value
-    # restricted. So `@restrictions[0]` is the array of restricted values for
-    # cell 0, and `@restrictions[10][5]` is 1 if cell 10 is restricted from
-    # being value 5 or is a 0 if cell 10 is not restricted from being value 5.
-    @restrictions = []
-    make_empty_restriction = -> [0,0,0,0,0,0,0,0,0,0]
-    @restrictions = (make_empty_restriction() for i in [0...81])
-
-    # Clusters are indexed first by type of group (row = 0, col = 1, box = 2),
-    # then by index of that group (0-8), then by value (1-9), then by positions
-    # (0-8), with a 0 indicating not in the cluster and 1 indicating in the
-    # cluster. For example, if `@clusters[1][3][2]` were `[1,1,1,0,0,0,0,0,0]`,
-    # then row 3 would need to have value 2 in the first 3 spots.
     @clusters = []
-    make_empty_cluster = -> [0,0,0,0,0,0,0,0,0]
+    make_empty_cluster = -> []
     make_empty_cluster_vals = -> (make_empty_cluster() for i in [1..9])
     make_empty_cluster_groups = -> (make_empty_cluster_vals() for i in [0..8])
     @clusters = (make_empty_cluster_groups() for i in [0..2])
 
-    # Counts the iterations thrrough the loop, may be phased out in favor of
-    # just stopping once have exhausted strategies. FIXME phase this out.
-    @solve_iter = 0
-
-    # Count the number of occurrences of each value.
-    @occurrences = [0,0,0,0,0,0,0,0,0,0]
+    @occurrences = [undefined,0,0,0,0,0,0,0,0,0]
     for v in [1..9]
       for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
 
-    # The record keeps track of every important operation performed and their
-    # order. Each object added to the record will have a `type` field indicating
-    # what kind of operation (`"fill"`, `"new-strat"`, and more detailed,
-    # strategy-specific operations)
     @record = []
 
-    # A collection keeping track of previous success/failures of
-    # strategies. Technically, all this information is provided by `record', but
-    # it is much more convenient to track this subset of information in a more
-    # accessible format.
-    @prev_results = []
-
-    # Variable to track whether the last strategy was a success or not... FIXME
-    # should be phased out, is redundant with @prev_strategies
-    @updated = true
 
 
   ### Variable Access ###
@@ -74,27 +72,39 @@ class Solver
   # structured strangely. These methods provide better interfaces for
   # interacting with (ie, getting/setting/adding to) these variables.
 
+  prev_results: ->
+    a = []
+    a.push(op) if op.type == "end-strat" for op in @record
+    return a
+
   # Get the index of the last occurrence of `strat_name` in the array of
   # previous results.
   last_attempt: (strat_name) ->
     last = -1
-    _.each(@prev_results, (result, i) ->
+    _.each(@prev_results(), (result, i) ->
       last = i if result.strat == strat_name )
     return last
 
   # Return whether a particular strategy result was a success (ie, if it filled
   # in any values or updated the knowldege base at all).
-  success: (strat_result) ->
-    strat_result.vals > 0 or strat_result.knowledge > 0
+  success: (strat_idx) ->
+    if strat_idx.vals? and strat_idx.knowledge?
+      result = strat_idx
+    else
+      result = @prev_results()[strat_idx]
+    result.vals > 0 or result.knowledge > 0
 
   # See if any of the strategies from the specified index onwards have been
   # successful (not including the specified index).
   update_since: (idx) ->
-    results = _.rest(@prev_results, idx + 1)
+    results = _.rest(@prev_results(), idx + 1)
 
     for result in results
       return true if result.vals > 0 or result.knowledge > 0
     return false
+
+  iter: ->
+    @prev_results().length + 1
 
   # Adds a restriction of value v to cell with base index i. Returns whether the
   # restriction was useful information (ie, if the restriction wasn't already in
@@ -319,8 +329,8 @@ class Solver
   # each value v, consider the boxes b where v has not yet been filled in.
 
   gridScan: ->
-    @record.push type: "start-strat", strat: "gridScan", iter: @prev_results.length+1
-    result = {strat: "gridScan", vals: 0, knowledge: 0}
+    @record.push type: "start-strat", strat: "gridScan", iter: @iter()
+    result = type: "end-strat", strat: "gridScan", vals: 0, knowledge: 0
     log "Trying Grid Scan"
 
     # Iterate through each value occuring 5 or more times, from most prevalent
@@ -342,14 +352,13 @@ class Solver
             result.vals += 1
             @set(ps[0], v, "gridScan")
 
-    @prev_results.push result
-    @record.push {type: "end-strat", strat: "gridScan"}
+    @record.push result
 
 
   # Run Grid Scan if no other strategies have been tried, or if the last
   # operation was a Grid Scan and it worked (meaning it set at least one value).
   should_gridScan: ->
-    last = _.last(@prev_results)
+    last = _.last(@prev_results())
     last == undefined or (last.strat == "gridScan" and @success(last))
 
   #### Smart Grid Scan ####
@@ -374,8 +383,8 @@ class Solver
   # Search should instead create them initially.
 
   smartGridScan: ->
-    @record.push type: "start-strat", strat: "smartGridScan", iter: @prev_results.length + 1
-    result = {strat: "smartGridScan", vals: 0, knowledge: 0}
+    @record.push type: "start-strat", strat: "smartGridScan", iter: @iter()
+    result = type: "end-strat", strat: "smartGridScan", vals: 0, knowledge: 0
     log "Trying Smart Grid Scan"
 
     vals = @vals_by_occurrences()
@@ -416,8 +425,7 @@ class Solver
                       log "Restricting (#{util.base_to_cart(i)}) from #{v} by Smart Grid Scan"
                       result.knowledge += 1
 
-    @prev_results.push result
-    @record.push {type: "end-strat", strat: "smartGridScan"}
+    @record.push result
 
   # Run Smart Grid Scan if the last attempt at Grid Scan failed, unless there
   # hasn't been any new info since the last attempt at Smart Grid Scan.
@@ -425,7 +433,7 @@ class Solver
     last_grid = @last_attempt("gridScan")
     last_smart = @last_attempt("smartGridScan")
     return last_grid > -1 and
-           not @success(@prev_results[last_grid]) and
+           not @success(last_grid) and
            @update_since(last_smart)
 
   #### Think Inside the Box ####
@@ -435,8 +443,8 @@ class Solver
   # can only be placed in one position in b, then fill it in.
 
   thinkInsideTheBox: ->
-    @record.push type: "start-strat", strat: "thinkInsideTheBox", iter: @prev_results.length + 1
-    result = {strat: "thinkInsideTheBox", vals: 0, knowledge: 0}
+    @record.push type: "start-strat", strat: "thinkInsideTheBox", iter: @iter()
+    result = type: "end-strat", strat: "thinkInsideTheBox", vals: 0, knowledge: 0
     log "Trying Think Inside the Box"
 
     for b in [0..8]
@@ -452,13 +460,12 @@ class Solver
           result.vals += 1
           @set(ps[0], v, "thinkInsideTheBox")
 
-    @prev_results.push result
-    @record.push {type: "end-strat", strat: "thinkInsideTheBox"}
+    @record.push result
 
   # Run Think Inside the Box unless the last attempt failed.
   should_thinkInsideTheBox: ->
     last = @last_attempt("thinkInsideTheBox")
-    return last == -1 or @success(@prev_results[last])
+    return last == -1 or @success(last)
 
   #### Think Inside the Row ####
   # For each row r and for each value v which has not yet been filled in within
@@ -467,8 +474,8 @@ class Solver
   # it in.
 
   thinkInsideTheRow: ->
-    @record.push type: "start-strat", strat: "thinkInsideTheRow", iter: @prev_results.length+1
-    result = {strat: "thinkInsideTheRow", vals: 0, knowledge: 0}
+    @record.push type: "start-strat", strat: "thinkInsideTheRow", iter: @iter()
+    result = type: "end-strat", strat: "thinkInsideTheRow", vals: 0, knowledge: 0
     log "Trying Think Inside the Row"
 
     for y in [0..8]
@@ -484,13 +491,12 @@ class Solver
           result.vals += 1
           @set(ps[0], v, "thinkInsideTheRow")
 
-    @prev_results.push result
-    @record.push {type: "end-strat", strat: "thinkInsideTheRow"}
+    @record.push result
 
   # Run Think Inside the Row unless the last attempt failed.
   should_thinkInsideTheRow: ->
     last = @last_attempt("thinkInsideTheRow")
-    return last == -1 or @success(@prev_results[last])
+    return last == -1 or @success(last)
 
   #### Think Inside the Col ####
   # For each col c and for each value v which has not yet been filled in within
@@ -499,8 +505,8 @@ class Solver
   # in.
 
   thinkInsideTheCol: ->
-    @record.push type: "start-strat", strat: "thinkInsideTheCol", iter: @prev_results.length+1
-    result = {strat: "thinkInsideTheCol", vals: 0, knowledge: 0}
+    @record.push type: "start-strat", strat: "thinkInsideTheCol", iter: @iter()
+    result = type: "end-strat", strat: "thinkInsideTheCol", vals: 0, knowledge: 0
     log "Trying Think Inside the Col"
 
     for x in [0..8]
@@ -516,13 +522,12 @@ class Solver
           result.vals += 1
           @set(ps[0], v, "thinkInsideTheCol")
 
-    @prev_results.push result
-    @record.push {type: "end-strat", strat: "thinkInsideTheCol"}
+    @record.push result
 
   # Run Think Inside the Col unless the last attempt failed.
   should_thinkInsideTheCol: ->
     last = @last_attempt("thinkInsideTheCol")
-    return last == -1 or @success(@prev_results[last])
+    return last == -1 or @success(last)
 
 
 
@@ -561,7 +566,7 @@ class Solver
     # We keep going until the grid is solved or until no more strategies are
     # chosen.
     until @grid.is_solved() or not @choose_strategy()
-      log "Iteration #{@prev_results.length + 1}"
+      log "Iteration #{@iter()}"
 
 
 

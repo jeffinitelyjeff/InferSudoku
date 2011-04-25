@@ -4,7 +4,10 @@
 
 # Things to Implement #
 
-- Need new system for restrictions. 
+- Need new system for restrictions. There should just be one function called
+  something like possible_values(i) which will use informed possibilities if the
+  information is available, but will resort to naive possibilities if informed
+  info isn't available.
   + Restrictions: cell I cannot be values V1, V2, ..., Vn.
   + Clusters: for row/col/box I, value V can only be in positions P1, P2, ...,
   Pn.
