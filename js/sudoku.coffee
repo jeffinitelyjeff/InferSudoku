@@ -80,7 +80,7 @@ $(document).ready ->
   # Hide the strategy display initially.
   dom.hide_strat()
 
-  log 'init webapp'
+  log 'init webapp', true
 
   # Set the position label to appear when in the grid and disappear when off the
   # grid.
@@ -108,7 +108,7 @@ $(document).ready ->
 
   # On click, perform the solve button animation, and then create a grid object,
   # create a solver object, and then solve!
-  dom.solve_b_animate ->
+  solve = ->
     log "Creating a grid object"
     g = new Grid()
 
@@ -118,4 +118,4 @@ $(document).ready ->
     log "Solving..."
     s.solve()
 
-
+  dom.solve_b_animate solve

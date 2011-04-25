@@ -26,6 +26,8 @@
 
 - Add ThinkInsideTheRow and ThinkInsideTheCol
 
+- Add variables for all JQuery selections in domutil.
+
 ## Functions ##
 
 - Give weights to the strategies based on how successful they've been so far,
