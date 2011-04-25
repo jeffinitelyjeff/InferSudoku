@@ -1,10 +1,10 @@
 root = exports ? this
 
 # Delay after filling in cells.
-root.FILL_DELAY = 50
+root.FILL_DELAY = 250
 
 # Delay after finishing a strategy.
-root.STRAT_DELAY = 100
+root.STRAT_DELAY = 1000
 
 # FIXME this should be removed in favor of having the loops stop once every
 # strat has failed.

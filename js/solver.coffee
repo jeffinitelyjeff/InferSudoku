@@ -315,7 +315,7 @@ class Solver
   # each value v, consider the boxes b where v has not yet been filled in.
 
   gridScan: ->
-    @record.push {type: "strat", strat: "gridScan"}
+    @record.push {type: "start-strat", strat: "gridScan"}
     @prev_results.push {strat: "gridScan", vals: 0, knowledge: 0}
     result = _.last(@prev_results)
     log "Trying Grid Scan"
@@ -338,6 +338,8 @@ class Solver
           if ps.length == 1
             result.vals += 1
             @set(ps[0], v, "gridScan")
+
+    @record.push {type: "end-strat", strat: "gridScan"}
 
 
   # Run Grid Scan if no other strategies have been tried, or if the last
@@ -371,7 +373,7 @@ class Solver
   # Search should instead create them initially.
 
   smartGridScan: ->
-    @record.push {type: "strat", strat: "smartGridScan"}
+    @record.push {type: "start-strat", strat: "smartGridScan"}
     @prev_results.push {strat: "smartGridScan", vals: 0, knowledge: 0}
     result = _.last(@prev_results)
     log "Trying Smart Grid Scan"
@@ -412,6 +414,8 @@ class Solver
                 unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
                   result.knowledge += 1 if @add_restriction(i,v)
 
+    @record.push {type: "end-strat", strat: "smartGridScan"}
+
   # Run Smart Grid Scan if the last attempt at Grid Scan failed, unless there
   # hasn't been any new info since the last attempt at Smart Grid Scan.
   should_smartGridScan: ->
@@ -431,7 +435,7 @@ class Solver
   # can only be placed in one position in b, then fill it in.
 
   thinkInsideTheBox: ->
-    @record.push {type: "strat", strat: "thinkInsideTheBox"}
+    @record.push {type: "start-strat", strat: "thinkInsideTheBox"}
     @prev_results.push {strat: "thinkInsideTheBox", vals: 0, knowledge: 0}
     result = _.last(@prev_results)
     log "Trying Think Inside the Box"
@@ -448,6 +452,7 @@ class Solver
           result.vals += 1
           @set(ps[0], v, "thinkInsideTheBox")
 
+    @record.push {type: "end-strat", strat: "thinkInsideTheBox"}
 
   # Run Think Inside the Box unless the last attempt failed.
   should_thinkInsideTheBox: ->

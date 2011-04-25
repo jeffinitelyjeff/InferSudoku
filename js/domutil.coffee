@@ -12,6 +12,8 @@ HIGHLIGHT_DURATION = root.HIGHLIGHT_DURATION
 HIGHLIGHT_FADEOUT_TIME = root.HIGHLIGHT_FADEOUT_TIME
 DEBUG = root.DEBUG
 BUFFER_UPDATE_DELAY = root.BUFFER_UPDATE_DELAY
+FILL_DELAY = root.FILL_DELAY
+STRAT_DELAY = root.STRAT_DELAY
 
 root.dom =
   ## Logging ##
@@ -97,7 +99,7 @@ root.dom =
 
   # Set the value in the input HTML element corresponding to the cell specified
   # in cartesian coordinates. Will insert a blank space if v is 0 or a dot.
-  set_input_val: (x, y, v, given) ->
+  set_display_val: (x, y, v, given) ->
     if v is 0 or v is '.'
       v = ''
 
@@ -114,8 +116,8 @@ root.dom =
   # Set the value in the input HTMl element corresponding to the cell specified
   # in cartesian coordinates. Will insert a blank space if v is 0 or a dot, and
   # otherwise will highlight the set cell.
-  set_input_val_and_highlight: (x, y, v) ->
-    @set_input_val(x,y,v)
+  highlight_display_val: (x, y, v) ->
+    @set_display_val(x,y,v)
 
     unless v is 0 or v is '.'
       $(@sel(x,y)).addClass('highlight', HIGHLIGHT_FADEIN_TIME).
@@ -169,10 +171,6 @@ root.dom =
   # These are mostly wrapper functions purely so that `main.coffee` doesn't ever
   # have to refer to dom elements explicitly by name.
 
-  # Updates the display with a new strategy.
-  announce_strategy: (s) ->
-    $("#strat").html(s)
-
   # Hide the strategy display.
   hide_strat: (e) ->
     $("#strat").fadeTo(0, 0)
@@ -219,7 +217,7 @@ root.dom =
 
       for c in [0...vs.length]
         v = vs[c]
-        @set_input_val(c, r, v, true)
+        @set_display_val(c, r, v, true)
 
   # Attaches a callback to the input button to inject the input text into the
   # dom grid.
@@ -248,20 +246,58 @@ root.dom =
     strat_options = {opacity: 0, top: '+=75px'}
     solve_options = {opacity: 1, top: '-=50px'}
 
-    strat_animate = ->
-      $("#strat").animate(strat_options, 250, 'easeOutQuad', solve_b_animate)
-    solve_b_animate = ->
-      $("#solve-b").animate(solve_options, 250, 'easeInQuad', wrap_up)
     wrap_up = ->
       root.dom.stop_updating_stderr()
       $("#solve-b, #input-b, input.num").attr('disabled', false)
+    solve_b_animate = ->
+      $("#solve-b").animate(solve_options, 250, 'easeInQuad', wrap_up)
+    strat_animate = ->
+      $("#strat").animate(strat_options, 250, 'easeOutQuad', solve_b_animate)
 
     strat_animate()
 
   animate_solution: (record, callback) ->
+    @animate_solution_r(_.first(record),
+                        undefined,
+                        _.rest(record),
+                        callback)
 
+  animate_solution_r: (op, last_op, rest_ops, callback) ->
+    return callback() unless op? > 0
 
+    iterate = (delay) =>
+      new_op = _.first(rest_ops)
+      new_last_op = op
+      new_rest_ops = _.rest(rest_ops)
+      setTimeout(( => @animate_solution_r(_.first(rest_ops), op,
+                                        _.rest(rest_ops), callback)), delay)
 
-    callback()
+    switch op.type
+      when "fill"
+        i = op.idx
+        v = op.val
+        s = op.strat
+        obv = s == "row-obvious" or s == "col-obvious" or s == "box-obvious"
 
+        [x,y] = util.base_to_cart i
+
+        @highlight_display_val(x,y,v)
+
+        if obv
+          iterate(FILL_DELAY / 5)
+        else
+          iterate(FILL_DELAY)
+      when "end-strat"
+        iterate(STRAT_DELAY)
+      when "start-strat"
+        if not last_op? or op.strat != last_op.strat
+          $("#strat").html(
+            if op.strat == "thinkInsideTheBox"
+              "thinkInside<br/>TheBox"
+            else
+              op.strat
+          )
+        iterate(0)
+      else
+        iterate(0)
 
