@@ -1,8 +1,6 @@
 # Tasks #
 
-- Add javascript to highlight groups/row/col on hover
-- Add button to pull random sudoku from database
-- Add server to pull random sudoku from websudoku
+- RESTRICTIONS / CLUSTERS
 
 # Things to Implement #
 
@@ -11,20 +9,12 @@
   + Clusters: for row/col/box I, value V can only be in positions P1, P2, ...,
   Pn.
   
-- Don't have max iterations for solve loop, just stop if every strategy has been
-  tried and failed.
-  
-- Refactor to store a sequence of steps, and then animate the steps; avoid all
-  the callback bs.
-  
 - Display animation effects of the stuff that's going on: ie, when looking at a
   box, then light up that box?
   
 - Completely restructure Smart Grid Scan so that it only adds to already created
   restrictions, exhaustion search should always be the one to create the
   restrictions in the first place.
-
-- Add ThinkInsideTheRow and ThinkInsideTheCol
 
 - Add variables for all JQuery selections in domutil.
 

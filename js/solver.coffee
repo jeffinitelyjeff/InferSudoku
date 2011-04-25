@@ -74,9 +74,13 @@ class Solver
   # structured strangely. These methods provide better interfaces for
   # interacting with (ie, getting/setting/adding to) these variables.
 
-  # Get the list of names of previously performed strategies.
-  prev_strats: ->
-    strats = (@prev_results[i].strat for i in [0...@prev_results.length])
+  # Get the index of the last occurrence of `strat_name` in the array of
+  # previous results.
+  last_attempt: (strat_name) ->
+    last = -1
+    _.each(@prev_results, (result, i) ->
+      last = i if result.strat == strat_name )
+    return last
 
   # Return whether a particular strategy result was a success (ie, if it filled
   # in any values or updated the knowldege base at all).
@@ -84,9 +88,9 @@ class Solver
     strat_result.vals > 0 or strat_result.knowledge > 0
 
   # See if any of the strategies from the specified index onwards have been
-  # successful.
+  # successful (not including the specified index).
   update_since: (idx) ->
-    results = _.rest(@prev_results, idx)
+    results = _.rest(@prev_results, idx + 1)
 
     for result in results
       return true if result.vals > 0 or result.knowledge > 0
@@ -207,7 +211,7 @@ class Solver
         concat(@grid.get_col_vals_of(i)).
           concat(@grid.get_box_vals_of(i))
 
-  # FIXME!
+
   informed_impossible_values: (i) ->
 
   # FIXME!
@@ -274,35 +278,35 @@ class Solver
     return ord
 
   # If the base indices are all in the same row, then returns the index of that
-  # row; otherwise returns false.
+  # row; otherwise returns -1.
   same_row: (idxs) ->
     first_row = util.base_to_cart(idxs[0])[1]
     idxs = _.rest(idxs)
     for idx in idxs
-      return false if util.base_to_cart(idx)[1] != first_row
+      return -1 if util.base_to_cart(idx)[1] != first_row
     return first_row
 
   # If the base indices are all in the same column, then returns the index of
-  # that col; otherwise returns false.
+  # that col; otherwise returns -1.
   same_col: (idxs) ->
     first_col = util.base_to_cart(idxs[0])[0]
     idxs = _.rest(idxs)
     for idx in idxs
-      return false if util.base_to_cart(idx)[0] != first_col
+      return -1 if util.base_to_cart(idx)[0] != first_col
     return first_col
 
   # If the base indices are all in the same box, then returns the index of that
-  # box; otherwise returns false.
+  # box; otherwise returns -1.
   same_box: (idxs) ->
     first_box = util.base_to_box(idx[0])
     idxs = _.rest(idxs)
     for idx in idxs
       box = util.base_to_box(idx)
-      return false if box[0] != first_box[0] or box[1] != first_box[1]
+      return -1 if box[0] != first_box[0] or box[1] != first_box[1]
     return first_box[0]+first_box[0]*3
 
 
-  ### New Strategies ###
+  ### Strategies ###
 
 
   #### Grid Scan ####
@@ -315,9 +319,8 @@ class Solver
   # each value v, consider the boxes b where v has not yet been filled in.
 
   gridScan: ->
-    @record.push {type: "start-strat", strat: "gridScan"}
-    @prev_results.push {strat: "gridScan", vals: 0, knowledge: 0}
-    result = _.last(@prev_results)
+    @record.push type: "start-strat", strat: "gridScan", iter: @prev_results.length+1
+    result = {strat: "gridScan", vals: 0, knowledge: 0}
     log "Trying Grid Scan"
 
     # Iterate through each value occuring 5 or more times, from most prevalent
@@ -339,17 +342,15 @@ class Solver
             result.vals += 1
             @set(ps[0], v, "gridScan")
 
+    @prev_results.push result
     @record.push {type: "end-strat", strat: "gridScan"}
 
 
   # Run Grid Scan if no other strategies have been tried, or if the last
   # operation was a Grid Scan and it worked (meaning it set at least one value).
   should_gridScan: ->
-    if @prev_results.length == 0
-      return true
-    else
-      last = _.last(@prev_results)
-      return last.strat == "GridScan" and last.vals > 0
+    last = _.last(@prev_results)
+    last == undefined or (last.strat == "gridScan" and @success(last))
 
   #### Smart Grid Scan ####
   # Consider each value, in order of currently most present on the grid to least
@@ -373,9 +374,8 @@ class Solver
   # Search should instead create them initially.
 
   smartGridScan: ->
-    @record.push {type: "start-strat", strat: "smartGridScan"}
-    @prev_results.push {strat: "smartGridScan", vals: 0, knowledge: 0}
-    result = _.last(@prev_results)
+    @record.push type: "start-strat", strat: "smartGridScan", iter: @prev_results.length + 1
+    result = {strat: "smartGridScan", vals: 0, knowledge: 0}
     log "Trying Smart Grid Scan"
 
     vals = @vals_by_occurrences()
@@ -384,49 +384,49 @@ class Solver
       @record.push {type: "smartgridscan-val", val: v}
       debug "- Smart Grid Scan examining value #{v}"
 
-      # Get the boxes which don't contain v.
-      boxes = []
-      boxes.push(b) if v not in @grid.get_box_vals(b) for b in [0..8]
+      for b in [0..8]
+        if v not in @grid.get_box_vals(b)
+          @record.push {type: "smartgridscan-box", box: b}
+          debug "-- Smart Grid Scan examining box #{b}"
 
-      for b in boxes
-        @record.push {type: "smartgridscan-box", box: b}
-        debug "-- Smart Grid Scan examining box #{b}"
+          # FIXME: ps = @possible_positions_in_box v, b, 'informed'
+          ps = @naive_possible_positions_in_box v, b
 
-        ps = @informed_possible_positions_in_box v, b
+          switch ps.length
+            when 1
+              result.vals += 1
+              @set(ps[0], v, "smartGridScan")
+            when 2,3
+              if @same_row(ps) > -1
+                y = @same_row(ps)
+                debug "--- Smart Grid Scan found positions all in the same row, #{y}"
+                for x in [0..8]
+                  i = util.cart_to_base x,y
+                  unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
+                    if @add_restriction(i,v)
+                      log "Restricting (#{util.base_to_cart(i)}) from #{v} by Smart Grid Scan"
+                      result.knowledge += 1
+              else if @same_col(ps) > -1
+                x = @same_col(ps)
+                debug "--- Smart Grid Scan found positions all in the same col, #{x}"
+                for y in [0..8]
+                  i = util.cart_to_base x,y
+                  unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
+                    if @add_restriction(i,v)
+                      log "Restricting (#{util.base_to_cart(i)}) from #{v} by Smart Grid Scan"
+                      result.knowledge += 1
 
-        switch ps.length
-          when 1
-            result.vals += 1
-            @set(ps[0], v, "gridScan")
-          when 2,3
-            if @same_row(ps)
-              y = @same_row(ps)
-              debug "--- Smart Grid Scan found positions all in the same row, #{y}"
-              for x in [0..8]
-                i = util.cart_to_base x,y
-                unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
-                  result.knowledge += 1 if @add_restriction(i,v)
-            else if @same_col(ps)
-              x = @same_col(ps)
-              debug "--- Smart Grid Scan found positions all in the same col, #{x}"
-              for y in [0..8]
-                i = util.cart_to_base x,y
-                unless @grid.idx_in_box(i,b) or @grid.get(i) != 0
-                  result.knowledge += 1 if @add_restriction(i,v)
-
+    @prev_results.push result
     @record.push {type: "end-strat", strat: "smartGridScan"}
 
   # Run Smart Grid Scan if the last attempt at Grid Scan failed, unless there
   # hasn't been any new info since the last attempt at Smart Grid Scan.
   should_smartGridScan: ->
-    last_gs = -1
-    _.each(@prev_result, (result, i) ->
-      last_gs = i if result.strat == "gridScan" )
-    last_sgs = -1
-    _.each(@prev_results, (result, i) ->
-      last_sgs = i if result.strat == "smartGridScan" )
-    return @prev_results[last_gs].vals == 0 and not @update_since(last_sgs)
-
+    last_grid = @last_attempt("gridScan")
+    last_smart = @last_attempt("smartGridScan")
+    return last_grid > -1 and
+           not @success(@prev_results[last_grid]) and
+           @update_since(last_smart)
 
   #### Think Inside the Box ####
   # For each box b and for each value v which has not yet been filled in within
@@ -435,9 +435,8 @@ class Solver
   # can only be placed in one position in b, then fill it in.
 
   thinkInsideTheBox: ->
-    @record.push {type: "start-strat", strat: "thinkInsideTheBox"}
-    @prev_results.push {strat: "thinkInsideTheBox", vals: 0, knowledge: 0}
-    result = _.last(@prev_results)
+    @record.push type: "start-strat", strat: "thinkInsideTheBox", iter: @prev_results.length + 1
+    result = {strat: "thinkInsideTheBox", vals: 0, knowledge: 0}
     log "Trying Think Inside the Box"
 
     for b in [0..8]
@@ -446,24 +445,89 @@ class Solver
 
       for v in vals
         debug "-- Think Inside the Box examining value #{v}"
+        # FIXME: ps = @possible_positions_in_box v,b, 'semi-informed'
         ps = @naive_possible_positions_in_box v, b
 
         if ps.length == 1
           result.vals += 1
           @set(ps[0], v, "thinkInsideTheBox")
 
+    @prev_results.push result
     @record.push {type: "end-strat", strat: "thinkInsideTheBox"}
 
   # Run Think Inside the Box unless the last attempt failed.
   should_thinkInsideTheBox: ->
-    last = -1
-    _.each(@prev_results, (result, i) ->
-      last = i if result.strat == "ThinkInsideTheBox" )
-    return last == -1 or success(@prev_results[last])
+    last = @last_attempt("thinkInsideTheBox")
+    return last == -1 or @success(@prev_results[last])
+
+  #### Think Inside the Row ####
+  # For each row r and for each value v which has not yet been filled in within
+  # r, see where v could possibly be placed within r (using semi-informed
+  # possible values); if v can only be placed in one position in r, then fill
+  # it in.
+
+  thinkInsideTheRow: ->
+    @record.push type: "start-strat", strat: "thinkInsideTheRow", iter: @prev_results.length+1
+    result = {strat: "thinkInsideTheRow", vals: 0, knowledge: 0}
+    log "Trying Think Inside the Row"
+
+    for y in [0..8]
+      debug "- Think Inside the Row examining row #{y}"
+      vals = _.without([1..9], @grid.get_row_vals(y)...)
+
+      for v in vals
+        debug "-- Think Inside the Row examining value #{v}"
+        # FIXME: ps = @possibel_positions_in_row v,b,'semi-informed'
+        ps = @naive_possible_positions_in_row v,y
+
+        if ps.length == 1
+          result.vals += 1
+          @set(ps[0], v, "thinkInsideTheRow")
+
+    @prev_results.push result
+    @record.push {type: "end-strat", strat: "thinkInsideTheRow"}
+
+  # Run Think Inside the Row unless the last attempt failed.
+  should_thinkInsideTheRow: ->
+    last = @last_attempt("thinkInsideTheRow")
+    return last == -1 or @success(@prev_results[last])
+
+  #### Think Inside the Col ####
+  # For each col c and for each value v which has not yet been filled in within
+  # r, see where v could possibly be placed within c (using semi-informed
+  # possible values); if v can only be placed in one position in c, then fill it
+  # in.
+
+  thinkInsideTheCol: ->
+    @record.push type: "start-strat", strat: "thinkInsideTheCol", iter: @prev_results.length+1
+    result = {strat: "thinkInsideTheCol", vals: 0, knowledge: 0}
+    log "Trying Think Inside the Col"
+
+    for x in [0..8]
+      debug "- Think Inside the Col examining col #{x}"
+      vals = _.without([1..9], @grid.get_col_vals(x)...)
+
+      for v in vals
+        debug "-- Think Inside the Col examining value #{v}"
+        # FIXME: ps = @possible_positions_in_col v,b,'semi-informed'
+        ps = @naive_possible_positions_in_col v,x
+
+        if ps.length == 1
+          result.vals += 1
+          @set(ps[0], v, "thinkInsideTheCol")
+
+    @prev_results.push result
+    @record.push {type: "end-strat", strat: "thinkInsideTheCol"}
+
+  # Run Think Inside the Col unless the last attempt failed.
+  should_thinkInsideTheCol: ->
+    last = @last_attempt("thinkInsideTheCol")
+    return last == -1 or @success(@prev_results[last])
 
 
 
-
+  # Will choose a strategy and execute it. If no strategies are chosen, then
+  # will return `false`, at which point the solve loop should stop.
   choose_strategy: ->
     # FIXME: should make this more complicated, maybe choose order to test based
     # on how successful they've been so far?
@@ -474,6 +538,12 @@ class Solver
     if @should_thinkInsideTheBox()
       return @thinkInsideTheBox()
 
+    if @should_thinkInsideTheRow()
+      return @thinkInsideTheRow()
+
+    if @should_thinkInsideTheCol()
+      return @thinkInsideTheCol()
+
     if @should_smartGridScan()
       return @smartGridScan()
 
@@ -482,14 +552,17 @@ class Solver
     # if @should_exhaustionSearch()
     # if @should_desperationSearch()
 
+    return false
+
   # Solves the grid and returns an array of steps used to animate those steps.
   solve: ->
-    iter = 1
+    log "Iteration 1"
 
-    until @grid.is_solved() or iter > max_solve_iter
-      log "Iteration #{iter}"
-      @choose_strategy()
-      iter += 1
+    # We keep going until the grid is solved or until no more strategies are
+    # chosen.
+    until @grid.is_solved() or not @choose_strategy()
+      log "Iteration #{@prev_results.length + 1}"
+
 
 
     log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("

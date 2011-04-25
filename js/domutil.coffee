@@ -290,13 +290,13 @@ root.dom =
       when "end-strat"
         iterate(STRAT_DELAY)
       when "start-strat"
-        if not last_op? or op.strat != last_op.strat
-          $("#strat").html(
-            if op.strat == "thinkInsideTheBox"
-              "thinkInside<br/>TheBox"
-            else
-              op.strat
-          )
+        $("#strat").html(op.iter + ": " +
+          switch op.strat
+            when "thinkInsideTheBox" then "thinkInside<br/>TheBox"
+            when "thinkInsideTheCol" then "thinkInside<br/>TheCol"
+            when "thinkInsideTheRow" then "thinkInside<br/>TheRow"
+            else op.strat
+        )
         iterate(0)
       else
         iterate(0)
