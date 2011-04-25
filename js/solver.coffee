@@ -33,28 +33,22 @@ debug = dom.debug
 #   (0-8), then by value (1-9), at which point the resulting array is a list of
 #   possible positions (in base indices). For example, `@clusters[1][0][2]` may
 #   be `[0, 9]` indicating that column 0 has value 2 only possible in two
-#   indices, 0 and 9.
+#   indices, 0 and 9. In general, `@clusters[g_t][g_i][v]` will be the list of
+#   positions where `v` is possible in group number `g_i` of group type `g_t`.
 # - `occurrences`: Tracks the number of occurrences of each value in the entire
 #   grid.
-#
 # - `record`: Tracks every important operation performed in order. Each object
 #   added to the record will have a `type` field indicating whta kind of
 #   operation (`"fill"`, `"start-strat"`, `"end-strat"`, and more detailed,
 #   strategy-specific operations). These operations will then be parsed in
 #   `dom.animate_solution`.
-#
-# -
 
 class Solver
   constructor: (@grid) ->
 
     @possibles = []
-    make_empty_possibles = -> []
-    @possibles = (make_empty_possibles() for i in [0...81])
 
-    @clusters = []
-    make_empty_cluster = -> []
-    make_empty_cluster_vals = -> (make_empty_cluster() for i in [1..9])
+    make_empty_cluster_vals = -> []
     make_empty_cluster_groups = -> (make_empty_cluster_vals() for i in [0..8])
     @clusters = (make_empty_cluster_groups() for i in [0..2])
 
@@ -64,7 +58,6 @@ class Solver
         @occurrences[v] += 1 if @grid.get(i) == v
 
     @record = []
-
 
 
   ### Variable Access ###
@@ -208,6 +201,53 @@ class Solver
 
 
   ### Basic Logic ###
+
+  # This will just read the cache of possible values if it exists, or will
+  # compute the informed possible values and cache it if there are 3 or less
+  # possibilities, which reflects how I would act solving a Sudoku. Note that
+  # informed possibilities are always used, but a lot of the time this will
+  # result in the same effect as using naive possibilities, since informed
+  # possibilities are only informed once their is knowledge is known.
+  possible_values: (i) ->
+    if @possibles[i]?
+      return @possibles[i]
+    else
+      vals = @informed_possible_values(i)
+      @possibles[i] = vals if vals.length <= 3
+      return vals
+
+  informed_possible_values: (i) ->
+    vals = @naive_possible_values(i)
+    [x,y] = util.base_to_cart i
+    [b_x, b_y, s_x, s_y] = util.base_to_box i
+    b = 3*b_y + b_x
+
+    row_clusters = @clusters[0][y]
+    col_clusters = @clusters[0][x]
+    box_clusters = @clusters[0][b]
+
+    # For each value, see if there are clusters in the row, col, or box which
+    # restrict that value to be somewhere that's not the current index.
+    for v in [1..9]
+      if (row_clusters[v]? and i not in row_clusters[v]) or
+         (col_clusters[v]? and i not in col_clusters[v]) or
+         (box_clusters[v]? and i not in box_clusters[v])
+        vals = _.without(vals, v)
+
+    return vals
+
+  # Get an array of all naively possible values for a specified cell. Returns an
+  # empty array if the cell is already set.
+  naive_possible_values: (i) ->
+    if @grid.get(i) > 0
+      []
+    else
+      impossible = @grid.get_row_vals_of(i).
+                   concat(@grid.get_col_vals_of(i)).
+                   concat(@grid.get_box_vals_of(i))
+      _.without([1..9], impossible...)
+
+
 
   # Get an array of all naively impossible values to fill into the cell at base
   # index i in the grid. If the cell already has a value, then will return all
