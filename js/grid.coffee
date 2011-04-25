@@ -97,85 +97,67 @@ class Grid
 
   ### Convenient Advanced Accessors ###
 
-  # Returns an array of the indices of the cells in a specified box. The box can
-  # be specified either in cartesian coordinates (of range [0..2]x[0..2]) or
-  # indexed 0-8.
-  get_box_idxs: (x, y) ->
-    unless y?
-      y = Math.floor(x/3)
-      x = Math.floor(x%3)
+  # Returns an array of the indices of the cells in the specified type of
+  # group. To specify a group type, row = 0, col = 1, and box = 2. The group
+  # must be specified by a single index (not by x and y for a box).
+  get_group_idxs: (group_type, group_idx) ->
+    switch group_type
+      # For rows
+      when 0
+        y = group_idx
+        a = (util.cart_to_base(x,y) for x in [0..8])
+      # For cols
+      when 1
+        x = group_idx
+        a = (util.cart_to_base(x,y) for y in [0..8])
+      # For boxes
+      when 2
+        a = []
+        [b_x, b_y] = [Math.floor(group_idx%3), Math.floor(group_idx/3)]
+        for s_y in [0..2]
+          for s_x in [0..2]
+            a.push(util.box_to_base b_x, b_y, s_x, s_y)
+      # Should only specify one of the three valid types of groups.
+      else
+        throw "Error"
 
+  # Returns an array of the indices of the cells adjacent to cell i in the group
+  # type specified.
+  get_group_idxs_of: (group_type, i) ->
+    [x,y] = util.base_to_cart i
+    [b_x, b_y, s_x, s_y] = util.base_to_box i
+
+    switch group_type
+      # For rows
+      when 0
+        @get_group_idxs(group_type, y)
+      # For cols
+      when 1
+        @get_group_idxs(group_type, x)
+      # For boxes
+      when 2
+        @get_group_idsx(group_type, 3*b_y+b_x)
+      # Should only specify one of the three valid types of groups.
+      else
+        throw "Error"
+
+  # Get the indices of all the cells in all the groups which cell i occupies.
+  get_all_group_idxs_of: (i) ->
     a = []
-    for j in [0..2]
-      for i in [0..2]
-        a.push(util.box_to_base(x,y,i,j))
-    return a
+    a.concat(@get_group_vals_of(j, i) for j in [0..2])
 
-  # Returns the array of all the indices of the cells in the box which the
-  # specified cell occupies. The cell can be specified either in cartesian
-  # coordinates or as a base index.
-  get_box_idxs_of: (x,y) ->
-    if y?
-      x = util.cart_to_base x,y
+  # Get the value of each cell in the specified group.
+  get_group_vals: (group_type, group_idx) ->
+    (@get(i) for i in @get_group_idxs(group_type, group_idx))
 
-    [b_x, b_y, s_x, s_y] = util.base_to_box x
-    @get_box_idxs b_x, b_y
+  # Get the value of each cell in the specified group containing cell i.
+  get_group_vals_of: (group_type, i) ->
+    (@get(j) for j in @get_group_idxs_of(group_type, i))
 
-  # Returns an array of all the values in a specified box. The box can be
-  # specified either in cartesian coordinates (of range [0..2]x[0..2]) or
-  # indexed 0-8.
-  get_box_vals: (x, y) ->
-    (@get(i) for i in @get_box_idxs(x,y))
+  # Get the values of all the cells in all the groups which cell i occupies.
+  get_all_group_vals_of: (i) ->
+    (@get(j) for j in @get_all_group_idxs_of(i))
 
-  # Returns the array of all the values in the box which the specified cell
-  # occupies. The cell can be specified either in cartesian coordinates or as a
-  # base index.
-  get_box_vals_of: (x, y) ->
-    (@get(i) for i in @get_box_idxs_of(x,y))
-
-  # Returns an array of all the indices of the cells in a specified col.
-  get_col_idxs: (x) ->
-    (util.cart_to_base(x,y) for y in [0..8])
-
-  # Returns the array of all indices of the cells in the col which this cell
-  # occupies. The cell can be specified either in cartesian coordinates or as
-  # a base index.
-  get_col_idxs_of: (x, y) ->
-    if y?
-      @get_col_idxs x
-    else
-      @get_col_idxs util.base_to_cart(x)[0]
-
-  # Returns an array of all the values in a specified col.
-  get_col_vals: (x) ->
-    (@get(i) for i in @get_col_idxs(x))
-
-  # Returns the array of all values in the col which this cell occupies. The
-  # cell can be specified either in cartesian coordinates or as a base index.
-  get_col_vals_of: (x, y) ->
-    (@get(i) for i in @get_col_idxs_of(x,y))
-
-  # Returns an array of all the indices of the cells in a specified row.
-  get_row_idxs: (y) ->
-    (util.cart_to_base(x,y) for x in [0..8])
-
-  # Returns the array of all indices of the cells in the row which this cell
-  # occupies. The cell can be specified either in cartesian coordinates or as a
-  # base index.
-  get_row_idxs_of: (x, y) ->
-    if y?
-      @get_row_idxs y
-    else
-      @get_row_idxs util.base_to_cart(x)[1]
-
-  # Returns an array of all the values in a specified row.
-  get_row_vals: (y) ->
-    (@get(i) for i in @get_row_idxs(y))
-
-  # Returns the array of all values in the row which this cell occupies. The
-  # cell can be specified either in cartesian coordinates or as a base index.
-  get_row_vals_of: (x, y) ->
-    (@get(i) for i in @get_row_idxs_of(x,y))
 
 ## Wrap Up ##
 

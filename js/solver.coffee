@@ -119,16 +119,30 @@ class Solver
       @possibles[i] = vals if vals.length <= 3
       return vals
 
-  # Adds a restriction of value v to cell with base index i. Returns whether the
-  # restriction was useful information (ie, if it actually narrowed the list of
-  # possible values for the cell; this isn't meant to capture the whole picture,
-  # since the restriction may be theoretically useful, but not actually ever
-  # used because we only record possible values for a cell if there are only 3
-  # or less).
-  add_restriction: (i, v) ->
-    # Don't allow setting restrictions to cells that already have values.
-    throw "Error" if @grid.get(i) != 0
+  # Adds a specified cluster to the knowledge bank of clusters, and also updates
+  # any cached `possibles` lists, both to say that the value can't be used
+  # anywhere else in the group, and, if the cluster is oriented such that it is
+  # entirely contained in another group, that no other cells in that group can
+  # take on the value.
+  add_cluster: (group_type, group_idx, val, positions) ->
+    @clusters[group_type][group_idx][val] = positions
 
+    # Restrict the other cells within the group.
+    switch group_type
+      # For rows
+      when 0
+        _.without(@get_row_
+      # For cols
+      when 1
+      # For boxes
+      when 2
+
+  # Updates the knowledge base with the information that cell i should be
+  # restricted from value v; this will only do something if we're already
+  # keeping track of possible values for cell i. Returns whether it updated the
+  # knowledge base (ie, if we're tracking possible values for that cell and we
+  # didn't already know that it couldn't be value v).
+  restrict: (i, v) ->
     # Make sure a list of possible values is set for i if it should exist (ie,
     # if there are only 3 or less possible values)
     @possible_values(i)
@@ -152,6 +166,7 @@ class Solver
   # function since it recursively calls the `fill_obvious` functions).
   set: (i, v, strat) ->
     @grid.set i,v
+    @possibles[i] = []
     @record.push {type: "fill", idx: i, val: v, strat: strat}
     log "Setting (#{util.base_to_cart(i)}) to #{v} by #{strat}"
 
@@ -193,17 +208,17 @@ class Solver
 
   # Calls `fill_obvious_group` for a row.
   fill_obvious_row: (y) ->
-    idxs = @grid.get_row_idxs(y)
+    idxs = @grid.get_group_idxs(0,y)
     @fill_obvious_group(idxs, "row")
 
   # Calls `fill_obvious_group` for a col.
   fill_obvious_col: (x) ->
-    idxs = @grid.get_col_idxs(x)
+    idxs = @grid.get_group_idxs(1,x)
     @fill_obvious_group(idxs, "col")
 
   # Calls `fill_obvious_group` for a box.
   fill_obvious_box: (b_x, b_y) ->
-    idxs = @grid.get_box_idxs(b_x, b_y)
+    idxs = @grid.get_group_idxs(2,3*b_x+b_y)
     @fill_obvious_group(idxs, "box")
 
 
@@ -235,9 +250,7 @@ class Solver
     if @grid.get(i) > 0
       []
     else
-      impossible = @grid.get_row_vals_of(i).
-                   concat(@grid.get_col_vals_of(i)).
-                   concat(@grid.get_box_vals_of(i))
+      impossible = @grid.get_all_group_vals_of(i)
       _.without([1..9], impossible...)
 
   # Gets a list of positions in a specified box where v can be filled in based
@@ -354,7 +367,7 @@ class Solver
 
       # Iterate through each box which v does not occur in.
       for b in [0..8]
-        if v not in @grid.get_box_vals(b)
+        if v not in @grid.get_group_vals(2, b)
           @record.push {type: "gridscan-box", box: b}
           debug "-- Grid Scan examining box #{b}"
 
@@ -406,7 +419,7 @@ class Solver
       debug "- Smart Grid Scan examining value #{v}"
 
       for b in [0..8]
-        if v not in @grid.get_box_vals(b)
+        if v not in @grid.get_group_vals(2, b)
           @record.push {type: "smartgridscan-box", box: b}
           debug "-- Smart Grid Scan examining box #{b}"
 
@@ -461,7 +474,7 @@ class Solver
 
     for b in [0..8]
       debug "- Think Inside the Box examining box #{b}"
-      vals = _.without([1..9], @grid.get_box_vals(b)...)
+      vals = _.without([1..9], @grid.get_group_vals(2, b)...)
 
       for v in vals
         debug "-- Think Inside the Box examining value #{v}"
@@ -492,7 +505,7 @@ class Solver
 
     for y in [0..8]
       debug "- Think Inside the Row examining row #{y}"
-      vals = _.without([1..9], @grid.get_row_vals(y)...)
+      vals = _.without([1..9], @grid.get_group_vals(0,y)...)
 
       for v in vals
         debug "-- Think Inside the Row examining value #{v}"
@@ -523,7 +536,7 @@ class Solver
 
     for x in [0..8]
       debug "- Think Inside the Col examining col #{x}"
-      vals = _.without([1..9], @grid.get_col_vals(x)...)
+      vals = _.without([1..9], @grid.get_group_vals(1,x)...)
 
       for v in vals
         debug "-- Think Inside the Col examining value #{v}"
