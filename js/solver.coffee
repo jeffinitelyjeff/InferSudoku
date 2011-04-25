@@ -99,42 +99,49 @@ class Solver
   iter: ->
     @prev_results().length + 1
 
+  # This will just read the cache of possible values if it exists, or will
+  # compute the informed possible values and cache it if there are 3 or less
+  # possibilities, which reflects how I would act solving a Sudoku.
+  #
+  # Note: Informed possibilities are always used, but a lot of the time this
+  # will result in the same effect as using naive possibilities, since informed
+  # possibilities are only informed once their is knowledge is known. Also,
+  # informed possibilities are just based on the knowledge that is recorded;
+  # this is akin to a human writing down information the grid, so it makes sense
+  # to always consult this knowledge, since a human would rarely ignore the
+  # information they write (this is assuming that, like I, they only record
+  # minimal information and do not try to brute-force a strategy).
+  possible_values: (i) ->
+    if @possibles[i]?
+      return @possibles[i]
+    else
+      vals = @informed_possible_values(i)
+      @possibles[i] = vals if vals.length <= 3
+      return vals
+
   # Adds a restriction of value v to cell with base index i. Returns whether the
-  # restriction was useful information (ie, if the restriction wasn't already in
-  # the database of restrictions)
+  # restriction was useful information (ie, if it actually narrowed the list of
+  # possible values for the cell; this isn't meant to capture the whole picture,
+  # since the restriction may be theoretically useful, but not actually ever
+  # used because we only record possible values for a cell if there are only 3
+  # or less).
   add_restriction: (i, v) ->
-    # we should only be adding restrictions to cells which aren't set yet.
+    # Don't allow setting restrictions to cells that already have values.
     throw "Error" if @grid.get(i) != 0
 
-    prev = @restrictions[i][v]
-    @restrictions[i][v] = 1
-    return prev == 0
+    # Make sure a list of possible values is set for i if it should exist (ie,
+    # if there are only 3 or less possible values)
+    @possible_values(i)
+    if @possibles[i]? and v in @possibles[i]
+      @possibles[i] = _.without(@possibles[i], v)
 
-  # Gets a representation of the cell restriction for the cell with base index
-  # i. If the cell has a lot of restrictions, then returns a list of values
-  # which the cell must be; if the cell has only a few restrictions, then
-  # returns a list of values which the cell can't be. The returned object will
-  # have a "type" field specifying if it's returning the list of cells possible
-  # ("must"), the list of cells not possible ("cant"), or no information because
-  # no info has yet been storetd for the cell ("none"), and a "vals" array with
-  # the list of values either possible or impossle.
-  get_restrictions: (i) ->
-    r = @restrictions[i]
-    n = util.num_pos r
+      # We should never be in the case where we add a restriction and thus make
+      # a cell have no possible values.
+      throw "Error" if @possibles[i].length == 0
 
-    if n == 0
-      return { type: "none" }
-    else if 1 <= n <= 4
-      cants = []
-      for j in [1..9]
-        cants.push(j) if r[j] == 1
-      return { type: "cant", vals: cants }
-    else # this will mean n >= 5
-      musts = []
-      for j in [1..9]
-        musts.push(j) if r[j] == 0
-      return { type: "must", vals: musts }
-
+      return true
+    else
+      return false
 
   ### Setting ###
 
@@ -202,20 +209,6 @@ class Solver
 
   ### Basic Logic ###
 
-  # This will just read the cache of possible values if it exists, or will
-  # compute the informed possible values and cache it if there are 3 or less
-  # possibilities, which reflects how I would act solving a Sudoku. Note that
-  # informed possibilities are always used, but a lot of the time this will
-  # result in the same effect as using naive possibilities, since informed
-  # possibilities are only informed once their is knowledge is known.
-  possible_values: (i) ->
-    if @possibles[i]?
-      return @possibles[i]
-    else
-      vals = @informed_possible_values(i)
-      @possibles[i] = vals if vals.length <= 3
-      return vals
-
   informed_possible_values: (i) ->
     vals = @naive_possible_values(i)
     [x,y] = util.base_to_cart i
@@ -247,31 +240,11 @@ class Solver
                    concat(@grid.get_box_vals_of(i))
       _.without([1..9], impossible...)
 
-
-
-  # Get an array of all naively impossible values to fill into the cell at base
-  # index i in the grid. If the cell already has a value, then will return all
-  # other values; this seems a little unnecessary, but turns out to make other
-  # things cleaner.
-  naive_impossible_values: (i) ->
-    if @grid.get(i) > 0
-      return _.without([1..9], @grid.get(i))
-    else
-      @grid.get_row_vals_of(i).
-        concat(@grid.get_col_vals_of(i)).
-          concat(@grid.get_box_vals_of(i))
-
-
-  informed_impossible_values: (i) ->
-
-  # FIXME!
-  informed_possible_positions_in_box: (v, x, y) ->
-
-  # Iets a list of positions in a specified box where v can be filled in based
-  # on `naive_impossible_values`. The box can be specified either as (x,y) in
-  # [0..2]x[0..2] or with a single index in [0..8]. Positions are returned as
-  # base indices of the grid.
-  naive_possible_positions_in_box: (v, x, y) ->
+  # Gets a list of positions in a specified box where v can be filled in based
+  # on filled in values and whatever knowledge we currently have. The box can be
+  # specified either as (x,y) in [0..2]x[0..2] or with a single index in
+  # [0..8]. Positions are returned as base indices of the grid.
+  possible_positions_in_box: (v, x, y) ->
     if y?
       [nx, ny] = [x, y]
     else
@@ -281,30 +254,29 @@ class Solver
     for b in [0..2]
       for a in [0..2]
         i = util.box_to_base nx,ny,a,b
-        ps.push(i) unless v in @naive_impossible_values(i)
+        ps.push(i) if v in @possible_values(i)
 
     return ps
 
   # Gets a list of positions in a specified row where v can be filled in based
-  # on `naive_impossible_values`. The row is specified as a y-coordinate of
-  # cartesian coordinates, and positions are returned as base indices of the
-  # grid.
-  naive_possible_positions_in_row: (v, y) ->
+  # on filled in values and whatever knowledge we currently have. Positions are
+  # returned as base indices of the grid.
+  possible_positions_in_box: (v, y) ->
     ps = []
     for x in [0..8]
       i = util.cart_to_base x,y
-      ps.push(i) unless v in @naive_impossible_values(i)
+      ps.push(i) if v in @possible_values(i)
 
     return ps
 
   # Gets a list of positions in a specified col where v can be filled in based
-  # on `naive_impossible_values`. The row is specified as an x-coordinate of
-  # cartesian coordinates, and positions are returned as base indices of the grid.
-  naive_possible_positions_in_col: (v, x) ->
+  # on filled in values and whatever knowledge we currently have. Positions are
+  # returned as base indices of the grid.
+  possible_positions_in_col: (v, x) ->
     ps = []
     for y in [0..8]
       i = util.cart_to_base x,y
-      ps.push(i) unless v in @naive_impossible_values(i)
+      ps.push(i) if v in @possible_values(i)
 
     return ps
 
@@ -386,7 +358,7 @@ class Solver
           @record.push {type: "gridscan-box", box: b}
           debug "-- Grid Scan examining box #{b}"
 
-          ps = @naive_possible_positions_in_box v, b
+          ps = @possible_positions_in_box v, b
 
           if ps.length == 1
             result.vals += 1
@@ -439,7 +411,7 @@ class Solver
           debug "-- Smart Grid Scan examining box #{b}"
 
           # FIXME: ps = @possible_positions_in_box v, b, 'informed'
-          ps = @naive_possible_positions_in_box v, b
+          ps = @possible_positions_in_box v, b
 
           switch ps.length
             when 1
@@ -494,7 +466,7 @@ class Solver
       for v in vals
         debug "-- Think Inside the Box examining value #{v}"
         # FIXME: ps = @possible_positions_in_box v,b, 'semi-informed'
-        ps = @naive_possible_positions_in_box v, b
+        ps = @possible_positions_in_box v, b
 
         if ps.length == 1
           result.vals += 1
@@ -525,7 +497,7 @@ class Solver
       for v in vals
         debug "-- Think Inside the Row examining value #{v}"
         # FIXME: ps = @possibel_positions_in_row v,b,'semi-informed'
-        ps = @naive_possible_positions_in_row v,y
+        ps = @possible_positions_in_row v,y
 
         if ps.length == 1
           result.vals += 1
@@ -556,7 +528,7 @@ class Solver
       for v in vals
         debug "-- Think Inside the Col examining value #{v}"
         # FIXME: ps = @possible_positions_in_col v,b,'semi-informed'
-        ps = @naive_possible_positions_in_col v,x
+        ps = @possible_positions_in_col v,x
 
         if ps.length == 1
           result.vals += 1

@@ -29,7 +29,7 @@
 #                              currently filled in on the grid.
 # - **informed possible value** A value which is possible in a particular cell
 #                               when considering the other values currently
-#                               filled in and all relevant information about
+#                               filled in and the relevant information about
 #                               cell possibilites which we are storing.
 # - **row** A row of the Sudoku grid.
 # - **col** A column of the Sudoku grid.
