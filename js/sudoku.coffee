@@ -80,7 +80,7 @@ $(document).ready ->
   # Hide the strategy display initially.
   dom.hide_strat()
 
-  log 'init webapp'
+  log 'init webapp', true
 
   # Set the position label to appear when in the grid and disappear when off the
   # grid.

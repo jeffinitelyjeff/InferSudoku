@@ -10,23 +10,45 @@ util = root.util
 HIGHLIGHT_FADEIN_TIME = root.HIGHLIGHT_FADEIN_TIME
 HIGHLIGHT_DURATION = root.HIGHLIGHT_DURATION
 HIGHLIGHT_FADEOUT_TIME = root.HIGHLIGHT_FADEOUT_TIME
+DEBUG = root.DEBUG
+BUFFER_UPDATE_DELAY = root.BUFFER_UPDATE_DELAY
 
 root.dom =
   ## Logging ##
 
-  # Basic logging function. Appends the given string to the stderr textbox, and
-  # then returns the value of the string so that log statements can be returned if
-  # it's the last line in a function or for loop.
-  log: (s) ->
-    t = $('#stderr')
-    t.val(t.val() + s + '\n')
-    t.scrollTop(9999999)
+  # Basic logging function. Appends the given string to the log buffer, which is
+  # just a string which is periodically pushed to the stderr display.
+  log: (s, direct) ->
+    if root.dom.log_buffer?
+      root.dom.log_buffer = root.dom.log_buffer + s + "\n"
+    else
+      root.dom.log_buffer = s
+
+    if direct
+      $("#stderr").val(root.dom.log_buffer)
+
     return s
 
-  # Debug is a wrapper for `log` which will only run `log` if the `debug`
-  # setting is true.
+  # Wrapper for `log` which will only run `log` if the `DEBUG` setting is true.
   debug: (s) ->
-    root.dom.log(s) if root.DEBUG
+    root.dom.log(s) if DEBUG
+    return s
+
+  # Initiates a thread which will update the stderr textarea periodically with
+  # the contents of the log buffer.
+  update_stderr: ->
+    update = ->
+      root.dom.log_buffer = '' unless root.dom.log_buffer?
+      buffer = root.dom.log_buffer
+      prev_val = $("#stderr").val()
+      $("#stderr").val(buffer)
+      if prev_val != buffer
+        $("#stderr").scrollTop(9999999)
+
+    root.dom.buffer_interval_id = setInterval(update, BUFFER_UPDATE_DELAY)
+
+  stop_updating_stderr: ->
+    clearInterval(root.dom.buffer_interval_id)
 
   ## JQuery Selectors ##
 
@@ -211,25 +233,35 @@ root.dom =
     strat_options = {opacity: 1, top: '-=75px'}
     solve_options = {opacity: 0, top: '+=50px'}
 
-    animate_solve = ->
+    animate_solve_b = ->
       $("#solve-b").animate(solve_options, 250, 'easeOutQuad', animate_strat)
     animate_strat = ->
+      root.dom.update_stderr()
       $("#strat").html("Computing...")
       $("#strat").animate(strat_options, 250, 'easeInQuad', callback)
 
     $("#solve-b").click ->
       $("#solve-b, #input-b, input.num").attr('disabled', true)
-      animate_solve()
+      animate_solve_b()
 
-  solve_done_animate: ->
+  wrap_up_animation: (record) ->
     strat_options = {opacity: 0, top: '+=75px'}
-    strat_animate = ->
-      $("#strat").animate(strat_options, 250, 'easeOutQuad', solve_animate)
     solve_options = {opacity: 1, top: '-=50px'}
-    solve_animate = ->
-      $("#solve-b").animate(solve_options, 250, 'easeInQuad', enable)
-    enable = ->
+
+    strat_animate = ->
+      $("#strat").animate(strat_options, 250, 'easeOutQuad', solve_b_animate)
+    solve_b_animate = ->
+      $("#solve-b").animate(solve_options, 250, 'easeInQuad', wrap_up)
+    wrap_up = ->
+      root.dom.stop_updating_stderr()
       $("#solve-b, #input-b, input.num").attr('disabled', false)
 
     strat_animate()
+
+  animate_solution: (record, callback) ->
+
+
+
+    callback()
+
 

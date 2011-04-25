@@ -20,5 +20,9 @@ root.HIGHLIGHT_DURATION = 500
 # Time it takes for a highlighted cell to fade out.
 root.HIGHLIGHT_FADEOUT_TIME = 500
 
-
+# Will display more detailed log output for strategies if debug is enabled.
 root.DEBUG = false
+
+# Frequency with which to refresh the stderr console/textarea with the contents
+# of the log buffer.
+root.BUFFER_UPDATE_DELAY = 200

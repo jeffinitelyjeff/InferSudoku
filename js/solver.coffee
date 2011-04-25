@@ -1,6 +1,10 @@
-root = exports ? this
+# `solver.coffee` contains all logic for human-level inference to find a
+# solution to the Sudoku grid.
 
-## Import Statements
+
+## Import Statements ##
+
+root = exports ? this
 
 FILL_DELAY = root.FILL_DELAY
 STRAT_DELAY = root.STRAT_DELAY
@@ -48,7 +52,16 @@ class Solver
       for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
 
-    # A collection keeping track of previous success/failures of strategies.
+    # The record keeps track of every important operation performed and their
+    # order. Each object added to the record will have a `type` field indicating
+    # what kind of operation (`"fill"`, `"new-strat"`, and more detailed,
+    # strategy-specific operations)
+    @record = []
+
+    # A collection keeping track of previous success/failures of
+    # strategies. Technically, all this information is provided by `record', but
+    # it is much more convenient to track this subset of information in a more
+    # accessible format.
     @prev_results = []
 
     # Variable to track whether the last strategy was a success or not... FIXME
@@ -466,8 +479,6 @@ class Solver
 
   # Solves the grid and returns an array of steps used to animate those steps.
   solve: ->
-    @record = []
-    @strat_results = []
     iter = 1
 
     until @grid.is_solved() or iter > max_solve_iter
@@ -478,7 +489,7 @@ class Solver
 
     log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
 
-    dom.solve_done_animate()
+    dom.animate_solution(@record, dom.wrap_up_animation)
 
 
 
