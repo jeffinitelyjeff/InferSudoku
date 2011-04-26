@@ -26,15 +26,17 @@ debug = dom.debug
 #   minor performance boost; the real point of it is to simulate the human
 #   process of recording a couple possible values when there are only a couple
 #   possible values.
-# - `clusters`: An array of arrays of arrays of arrays representing the
-#   positions available to fill in a particular value in a particularly indexed
-#   particular type of group (thus the three levels of indexing). Indexed first
-#   by type of group (row = 0, col = 1, box = 2), then by index of that group
-#   (0-8), then by value (1-9), at which point the resulting array is a list of
-#   possible positions (in base indices). For example, `@clusters[1][0][2]` may
-#   be `[0, 9]` indicating that column 0 has value 2 only possible in two
-#   indices, 0 and 9. In general, `@clusters[g_t][g_i][v]` will be the list of
-#   positions where `v` is possible in group number `g_i` of group type `g_t`.
+#
+# - `clusters`: An array of array of arrays of cell positions representing the
+#   clusters of positions which a value is restricted to inhabiting in
+#   particular groups. We add clusters thinking about a cluster belonging to a
+#   particular group (as in, "this value is only possible in these 3 spots in
+#   this box"), but the information is actually relevant to any group which
+#   contains all the positions of the cluster. A cluster is represented as a
+#   list of cell positions, assigned to a specific position in the `clusters`
+#   array to indicate the value which it is clustering. For example,
+#   `clusters[3]` is a list of clusters for the value 3; `clusters[3][0]` is a
+#   cluster, a list of positions.
 # - `occurrences`: Tracks the number of occurrences of each value in the entire
 #   grid.
 # - `record`: Tracks every important operation performed in order. Each object
@@ -119,23 +121,50 @@ class Solver
       @possibles[i] = vals if vals.length <= 3
       return vals
 
-  # Adds a specified cluster to the knowledge bank of clusters, and also updates
-  # any cached `possibles` lists, both to say that the value can't be used
-  # anywhere else in the group, and, if the cluster is oriented such that it is
-  # entirely contained in another group, that no other cells in that group can
-  # take on the value.
-  add_cluster: (group_type, group_idx, val, positions) ->
-    @clusters[group_type][group_idx][val] = positions
+  # `record_cluster:` This saves the specified cluster in the knowledge bank,
+  # and also performs the standard `visualize_cluster` to refine the other
+  # information in the knowledge bank. This is analogous to the process I
+  # undertake when I'm desperate for information to get somewhere in a puzzle.
+  #
+  # Adds the list of positions to the appropriate list in `@clusters` as long as
+  # the list of positions being added isn't a superset of any clusters already
+  # contained.
+  record_cluster: (val, positions) ->
+    same_positions = (cluster) ->
+      _.without(cluster, positions...) == []
 
-    # Restrict the other cells within the group.
-    switch group_type
-      # For rows
-      when 0
-        _.without(@get_row_
-      # For cols
-      when 1
-      # For boxes
-      when 2
+    unless _.any(@clusters[val], same_positions)
+      @clusters[val].push(positions)
+      @visualize_cluster(val, positions)
+
+  # Visualizes the specified cluster. This process just updates any `possible`
+  # knowledge in cells that are affected by the cluster; it is analogous to the
+  # process I undertake normally, before I'm desperate. This really shouldn't do
+  # a ton of updating, since `@restrict` should only have an effect when there
+  # are only a few possible values left for a cell and we're already recording
+  # them.
+  #
+  # This is blind of the type of group the cluster was originally intended for,
+  # and just refines info for every type of group that is applicable.
+  visualize_cluster: (val, positions) ->
+    if @grid.same_row positions
+      r = @grid.same_row positions
+      row_idxs = @get_group_idxs(0, r)
+      unclustered_idxs = _.without(row_idxs, positions...)
+      @restrict(i, val) for i in unclustered_idxs
+    if @grid.same_col positions
+      c = @grid.same_col positions
+      col_idxs = @get_group_idxs(1, c)
+      unclustered_idxs = _.without(col_idxs, positions...)
+      @restrict(i, val) for i in unclustered_idxs
+    if @grid.same_box positions
+      b = @grid.same_box positions
+      box_idxs = @get_group_idxs(2, b)
+      unclustered_idxs = _.without(box_idxs, positions...)
+      @restrict(i, val) for i in unclustered_idxs
+
+
+
 
   # Updates the knowledge base with the information that cell i should be
   # restricted from value v; this will only do something if we're already
@@ -312,33 +341,7 @@ class Solver
         ord.push(v) if @occurrences[v] == o
     return ord
 
-  # If the base indices are all in the same row, then returns the index of that
-  # row; otherwise returns -1.
-  same_row: (idxs) ->
-    first_row = util.base_to_cart(idxs[0])[1]
-    idxs = _.rest(idxs)
-    for idx in idxs
-      return -1 if util.base_to_cart(idx)[1] != first_row
-    return first_row
 
-  # If the base indices are all in the same column, then returns the index of
-  # that col; otherwise returns -1.
-  same_col: (idxs) ->
-    first_col = util.base_to_cart(idxs[0])[0]
-    idxs = _.rest(idxs)
-    for idx in idxs
-      return -1 if util.base_to_cart(idx)[0] != first_col
-    return first_col
-
-  # If the base indices are all in the same box, then returns the index of that
-  # box; otherwise returns -1.
-  same_box: (idxs) ->
-    first_box = util.base_to_box(idx[0])
-    idxs = _.rest(idxs)
-    for idx in idxs
-      box = util.base_to_box(idx)
-      return -1 if box[0] != first_box[0] or box[1] != first_box[1]
-    return first_box[0]+first_box[0]*3
 
 
   ### Strategies ###

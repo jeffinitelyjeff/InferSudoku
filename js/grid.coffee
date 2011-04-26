@@ -158,6 +158,34 @@ class Grid
   get_all_group_vals_of: (i) ->
     (@get(j) for j in @get_all_group_idxs_of(i))
 
+  # If the base indices are all in the same row, then returns the index of that
+  # row; otherwise returns -1.
+  same_row: (idxs) ->
+    first_row = util.base_to_cart(idxs[0])[1]
+    idxs = _.rest(idxs)
+    for idx in idxs
+      return -1 if util.base_to_cart(idx)[1] != first_row
+    return first_row
+
+  # If the base indices are all in the same column, then returns the index of
+  # that col; otherwise returns -1.
+  same_col: (idxs) ->
+    first_col = util.base_to_cart(idxs[0])[0]
+    idxs = _.rest(idxs)
+    for idx in idxs
+      return -1 if util.base_to_cart(idx)[0] != first_col
+    return first_col
+
+  # If the base indices are all in the same box, then returns the index of that
+  # box; otherwise returns -1.
+  same_box: (idxs) ->
+    first_box = util.base_to_box(idx[0])
+    idxs = _.rest(idxs)
+    for idx in idxs
+      box = util.base_to_box(idx)
+      return -1 if box[0] != first_box[0] or box[1] != first_box[1]
+    return first_box[0]+first_box[0]*3
+
 
 ## Wrap Up ##
 
