@@ -50,14 +50,15 @@ class Solver
 
     @possibles = []
 
-    make_empty_cluster_vals = -> []
-    make_empty_cluster_groups = -> (make_empty_cluster_vals() for i in [0..8])
-    @clusters = (make_empty_cluster_groups() for i in [0..2])
+    @clusters = (( -> [])() for i in [0..9])
 
     @occurrences = [undefined,0,0,0,0,0,0,0,0,0]
     for v in [1..9]
       for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
+
+    debug "Occurrences:"
+    debug _.reduce @occurrences, ((mem, o, v) -> mem + "#{v}: #{o}\n"), ""
 
     @record = []
 
@@ -93,6 +94,17 @@ class Solver
     else
       result = @prev_results()[strat_idx]
     result.vals > 0 or result.knowledge > 0
+
+  #### `strict_success` ####
+  # Return whether a particular strategy result was a strict success (ie, if it
+  # filled in any values). The argument can either be an index into
+  # `prev_results()`, or an actual end-strat object.
+  strict_success: (strat_idx) ->
+    if strat_idx.vals?
+      result = strat_idx
+    else
+      result = @prev_results()[strat_idx]
+    result.vals > 0
 
   #### `update_since` ####
   # See if any of the strategies from the specified index onwards have been
@@ -138,7 +150,7 @@ class Solver
       return @possibles[i]
     else
       vals = @informed_possible_values(i)
-      @possibles[i] = vals if vals.length < @possibles_cache_threshold()
+      @possibles[i] = vals if 0 < vals.length < @possibles_cache_threshold()
       return vals
 
   #### `record_cluster_threshold` ####
@@ -154,9 +166,9 @@ class Solver
   # `record_cluster_threshold.
   announce_cluster: (val, positions) ->
     if positions.length < @record_cluster_threshold()
-      @record_cluster()
+      @record_cluster(val, positions)
     else
-      @visualize_cluster()
+      @visualize_cluster(val, positions)
 
   #### `record_cluster` ####
   # This saves the specified cluster in the knowledge bank, and also performs
@@ -195,19 +207,19 @@ class Solver
   visualize_cluster: (val, positions) ->
     k = 0 # knowledge gained from visualizing this cluster.
 
-    if @grid.same_row positions
+    if @grid.same_row positions != -1
       r = @grid.same_row positions
       row_idxs = @get_group_idxs(0, r)
       unclustered_idxs = _.without(row_idxs, positions...)
       (k++ if @restrict(i, val)) for i in unclustered_idxs
 
-    if @grid.same_col positions
+    if @grid.same_col positions != -1
       c = @grid.same_col positions
       col_idxs = @get_group_idxs(1, c)
       unclustered_idxs = _.without(col_idxs, positions...)
       (k++ if @restrict(i, val)) for i in unclustered_idxs
 
-    if @grid.same_box positions
+    if @grid.same_box positions != -1
       b = @grid.same_box positions
       box_idxs = @get_group_idxs(2, b)
       unclustered_idxs = _.without(box_idxs, positions...)
@@ -328,11 +340,11 @@ class Solver
   informed_possible_values: (i) ->
     vals = @naive_possible_values(i)
 
-    _.reject(vals, (v) ->
-      _.any(@clusters[v], (cluster) ->
+    _.reject vals, (v) =>
+      _.any @clusters[v], (cluster) =>
         @grid.same_row(cluster.concat([i])) or
         @grid.same_col(cluster.concat([i])) or
-        @grid.same_box(cluster.concat([i])) ) )
+        @grid.same_box(cluster.concat([i]))
 
   #### `naive_possible_values` ####
   # Get an array of all naively possible values for a specified cell. Returns an
@@ -341,8 +353,9 @@ class Solver
     if @grid.get(i) > 0
       []
     else
-      impossible = @grid.get_all_group_vals_of(i)
-      _.without([1..9], impossible...)
+      ps = _.without([1..9], @grid.get_all_group_vals_of(i)...)
+      throw "Error" if ps.length == 0
+      return ps
 
   #### `possible_positions_in_box` ####
   # Gets a list of positions in a specified box where v can be filled in based
@@ -350,42 +363,26 @@ class Solver
   # specified either as (x,y) in [0..2]x[0..2] or with a single index in
   # [0..8]. Positions are returned as base indices of the grid.
   possible_positions_in_box: (v, x, y) ->
-    if y?
-      [nx, ny] = [x, y]
-    else
-      [nx, ny] = [Math.floor(x%3), Math.floor(x/3)]
+    b = if y? then 3*y + x else x
 
-    ps = []
-    for b in [0..2]
-      for a in [0..2]
-        i = util.box_to_base nx,ny,a,b
-        ps.push(i) if v in @possible_values(i)
-
-    return ps
+    _.select @grid.get_group_idxs(2, b), (i) =>
+      v in @possible_values(i)
 
   #### `possible_positions_in_row` ####
   # Gets a list of positions in a specified row where v can be filled in based
   # on filled in values and whatever knowledge we currently have. Positions are
   # returned as base indices of the grid.
   possible_positions_in_row: (v, y) ->
-    ps = []
-    for x in [0..8]
-      i = util.cart_to_base x,y
-      ps.push(i) if v in @possible_values(i)
-
-    return ps
+    _.select @grid.get_group_idxs(0, y), (i) =>
+      v in @possible_values(i)
 
   #### `possible_positions_in_col` ####
   # Gets a list of positions in a specified col where v can be filled in based
   # on filled in values and whatever knowledge we currently have. Positions are
   # returned as base indices of the grid.
   possible_positions_in_col: (v, x) ->
-    ps = []
-    for y in [0..8]
-      i = util.cart_to_base x,y
-      ps.push(i) if v in @possible_values(i)
-
-    return ps
+    _.select @grid.get_group_idxs(1, x), (i) =>
+      v in @possible_values(i)
 
   #### `vals_by_occurrences_above_4` ####
   # Returns an array of values in order of the number of their occurrences,
@@ -439,12 +436,15 @@ class Solver
           debug "-- Grid Scan examining box #{b}"
 
           ps = @possible_positions_in_box v, b
+          debug "-- possible positions: #{ps}"
 
-          if ps.length == 1
-            result.vals += 1
-            result.knowledge += @set(ps[0], v, "gridScan")
-          else
-            result.knowledge += @announce_cluster(v, ps)
+          switch ps.length
+            when 0 then throw "Error"
+            when 1
+              result.vals += 1
+              result.knowledge += @set(ps[0], v, "gridScan")
+            else
+              result.knowledge += @announce_cluster(v, ps)
 
     @record.push result
 
@@ -565,8 +565,8 @@ class Solver
     # FIXME: should make this more complicated, maybe choose order to test based
     # on how successful they've been so far?
 
-    if @should_gridScan()
-      return @gridScan()
+    #if @should_gridScan()
+    #  return @gridScan()
 
     if @should_thinkInsideTheBox()
       return @thinkInsideTheBox()

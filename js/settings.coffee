@@ -25,4 +25,4 @@ root.DEBUG = true
 
 # Frequency with which to refresh the stderr console/textarea with the contents
 # of the log buffer.
-root.BUFFER_UPDATE_DELAY = 200
+root.BUFFER_UPDATE_DELAY = 1

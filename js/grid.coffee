@@ -77,9 +77,9 @@ class Grid
   # Determine if the grid is solved.
   is_solved: ->
     for i in [0..8]
-      return false unless @valid_array @get_col_vals i
-      return false unless @valid_array @get_row_vals i
-      return false unless @valid_array @get_box_vals i
+      return false unless @valid_array @get_group_vals 0, i
+      return false unless @valid_array @get_group_vals 1, i
+      return false unless @valid_array @get_group_vals 2, i
     return true
 
   # Return whether base index i is in row r.
@@ -117,6 +117,7 @@ class Grid
         for s_y in [0..2]
           for s_x in [0..2]
             a.push(util.box_to_base b_x, b_y, s_x, s_y)
+        a
       # Should only specify one of the three valid types of groups.
       else
         throw "Error"
@@ -136,27 +137,28 @@ class Grid
         @get_group_idxs(group_type, x)
       # For boxes
       when 2
-        @get_group_idsx(group_type, 3*b_y+b_x)
+        @get_group_idxs(group_type, 3*b_y+b_x)
       # Should only specify one of the three valid types of groups.
       else
         throw "Error"
 
   # Get the indices of all the cells in all the groups which cell i occupies.
   get_all_group_idxs_of: (i) ->
-    a = []
-    a.concat(@get_group_vals_of(j, i) for j in [0..2])
+    _.uniq(@get_group_idxs_of(0,i).
+           concat(@get_group_idxs_of(1,i).
+           concat(@get_group_idxs_of(2,i))))
 
   # Get the value of each cell in the specified group.
   get_group_vals: (group_type, group_idx) ->
-    (@get(i) for i in @get_group_idxs(group_type, group_idx))
+    _.without((@get(i) for i in @get_group_idxs(group_type, group_idx)), 0)
 
   # Get the value of each cell in the specified group containing cell i.
   get_group_vals_of: (group_type, i) ->
-    (@get(j) for j in @get_group_idxs_of(group_type, i))
+    _.without((@get(j) for j in @get_group_idxs_of(group_type, i)), 0)
 
   # Get the values of all the cells in all the groups which cell i occupies.
   get_all_group_vals_of: (i) ->
-    (@get(j) for j in @get_all_group_idxs_of(i))
+    _.uniq(_.without((@get(j) for j in @get_all_group_idxs_of(i)), 0))
 
   # If the base indices are all in the same row, then returns the index of that
   # row; otherwise returns -1.
@@ -179,7 +181,7 @@ class Grid
   # If the base indices are all in the same box, then returns the index of that
   # box; otherwise returns -1.
   same_box: (idxs) ->
-    first_box = util.base_to_box(idx[0])
+    first_box = util.base_to_box(idxs[0])
     idxs = _.rest(idxs)
     for idx in idxs
       box = util.base_to_box(idx)

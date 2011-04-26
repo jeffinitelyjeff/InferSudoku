@@ -108,7 +108,7 @@ $(document).ready ->
 
   # On click, perform the solve button animation, and then create a grid object,
   # create a solver object, and then solve!
-  solve = ->
+  dom.solve_b_animate ->
     log "Creating a grid object"
     g = new Grid()
 
@@ -117,5 +117,3 @@ $(document).ready ->
 
     log "Solving..."
     s.solve()
-
-  dom.solve_b_animate solve
