@@ -21,7 +21,7 @@ class Grid
   print: ->
     _.reduce [0..8], ( (memo, y) =>
       memo + "\n" + _.reduce [0..8], ( (memo2, x) =>
-        memo2 + " " + @get_c(x,y) ), ""), ""
+        memo2 + " " + if @get_c(x,y) > 0 then @get_c(x,y) else "." ), ""), ""
 
 
   ### Accesssor Methods ###

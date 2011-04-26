@@ -73,6 +73,18 @@ class Solver
   # structured strangely. These methods provide better interfaces for
   # interacting with (ie, getting/setting/adding to) these variables.
 
+  #### `print_clusters` ####
+  print_clusters: ->
+    _.reduce @clusters, ((m, cs, v) ->
+      m + "\n#{v}: " +  _.reduce cs, ((m2, c) ->
+        m2 + "(#{c})"), "", "")
+
+  #### `print_possibles` ####
+  print_possibles: ->
+    _.reduce @possibles, ((m, vals, i) ->
+      m + "\n#{i}: [" + vals + "]"), ""
+
+
   #### `prev_results` ####
   # Skim the `record` for just the end strategy operations which have info about
   # the performance of each strategy.
@@ -129,13 +141,14 @@ class Solver
   # write down information the more desperate I get. `iter` will serve as a
   # proxy for this level of desperation.
   possibles_cache_threshold: ->
-    Math.max(2, (@iter()-1) / 10)
+    Math.max(2, (@iter()-1) / 5)
 
   # #### `possible_values` ####
-  # This will just read the cache of possible values if it
-  # exists, or will compute the informed possible values and cache it if there
-  # are 3 or less possibilities, which reflects how I would act solving a
-  # Sudoku.
+  # This will just read the cache of possible values if it exists, or will
+  # compute the informed possible values. Will cache the result if the cache
+  # parameter is provided and is truthy and there are few enough possibilities
+  # (as determined by `possibles_cache_threshold`, which dynamically adjusts to
+  # the difficulty the solver is facing.
   #
   # Note1: Once the cache is created for a particular cell, then the
   # `informed_possible_values` function is never going to be called again for
@@ -150,12 +163,15 @@ class Solver
   # sense to always consult this knowledge, since a human would rarely ignore
   # the information they write (this is assuming that, like I, they only record
   # minimal information and do not try to brute-force a strategy).
-  possible_values: (i) ->
+  possible_values: (i, cache) ->
     if @possibles[i]?
-      return @possibles[i]
+      @possibles[i]
     else
       vals = @informed_possible_values(i)
-      @possibles[i] = vals if 0 < vals.length < @possibles_cache_threshold()
+
+      if cache
+        @possibles[i] = vals if 1 < vals.length < @possibles_cache_threshold()
+
       return vals
 
   #### `record_cluster_threshold` ####
@@ -170,7 +186,7 @@ class Solver
   # This will either record or visualize a cluster depending on
   # `record_cluster_threshold.
   announce_cluster: (val, positions) ->
-    if positions.length < @record_cluster_threshold()
+    if 0 < positions.length < @record_cluster_threshold()
       @record_cluster(val, positions)
     else
       @visualize_cluster(val, positions)
@@ -186,12 +202,16 @@ class Solver
   # the list of positions being added isn't a superset of any clusters already
   # contained.
   record_cluster: (val, positions) ->
-    same_positions = (cluster) ->
-      _.without(cluster, positions...) == []
-
-    if _.any(@clusters[val], same_positions)
+    # If a more specific cluster already exists, then don't add this cluster.
+    if _.any @clusters[val], ((cluster) -> _.without(cluster, positions...).length == 0)
       return 0
     else
+      # Replace all clusters to which this cluster is a subset. This will create
+      # duplicate clusters, since the cluster is also always added on, but this
+      # shouldn't hurt anything.
+      _.each @clusters[val], ((cluster, idx) ->
+        if _.without(positions, cluster...).length == 0
+          @clusters[val][idx] = positions)
       @clusters[val].push(positions)
       return @visualize_cluster(val, positions) + 1
 
@@ -245,6 +265,7 @@ class Solver
   restrict: (i, v) ->
     @possible_values(i)
     if @possibles[i]? and v in @possibles[i]
+      debug "Restricting (#{util.base_to_cart i}) from being #{v}"
       @possibles[i] = _.without(@possibles[i], v)
 
       throw "Error" if @possibles[i].length == 0 # this wouldn't make sense
@@ -344,12 +365,15 @@ class Solver
   # the same group). This also handles values which are filled in the grid,
   # because clusters of size 1 are created for them when they're filled.
   informed_possible_values: (i) ->
-    _.reject [1..9], (v) =>
-      clusters = @clusters[v]
-      _.any clusters, (cluster) =>
-        @grid.same_row(cluster.concat([i])) != -1 or
-        @grid.same_col(cluster.concat([i])) != -1 or
-        @grid.same_box(cluster.concat([i])) != -1
+    if @grid.get(i) > 0
+      []
+    else
+      _.reject [1..9], (v) =>
+        clusters = @clusters[v]
+        _.any clusters, (cluster) =>
+          @grid.same_row(cluster.concat([i])) != -1 or
+          @grid.same_col(cluster.concat([i])) != -1 or
+          @grid.same_box(cluster.concat([i])) != -1
 
   #### `naive_possible_values` ####
   # Get an array of all naively possible values for a specified cell. Returns an
@@ -396,7 +420,7 @@ class Solver
   # on filled in values and whatever knowledge we currently have. Positions are
   # returned as base indices of the grid.
   possible_positions_in_col: (v, x) ->
-    _.select @grid.get_group_idxs(1, x), (i) =>
+    ps = _.select @grid.get_group_idxs(1, x), (i) =>
       v in @possible_values(i)
 
     if ps.length == 0 and v not in @grid.get_group_vals(1, x)
@@ -456,7 +480,6 @@ class Solver
           debug "-- Grid Scan examining box #{b}"
 
           ps = @possible_positions_in_box v, b
-          debug "-- possible positions: #{ps}"
 
           switch ps.length
             when 0 then throw "Error"
@@ -608,16 +631,21 @@ class Solver
   # Solves the grid and returns an array of steps used to animate those steps.
   solve: ->
     log "Iteration 1"
+    debug @grid.print()
 
     # We keep going until the grid is solved or until no more strategies are
     # chosen. This iterates because `choose_strategy` will actually perform the
     # chosen strategy.
     until @grid.is_solved() or not @choose_strategy()
       log "Iteration #{@iter()}"
+      debug "Grid", @grid.print()
+      debug "Clusters", @print_clusters()
+      debug "Possibles", @print_possibles()
 
 
 
     log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
+
 
     dom.animate_solution(@record, dom.wrap_up_animation)
 

@@ -32,9 +32,9 @@ root.dom =
     return s
 
   # Wrapper for `log` which will only run `log` if the `DEBUG` setting is true.
-  debug: (s) ->
-    root.dom.log(s) if DEBUG
-    return s
+  debug: (strs...) ->
+    for str in strs
+      root.dom.log(str) if DEBUG
 
   # Initiates a thread which will update the stderr textarea periodically with
   # the contents of the log buffer.
