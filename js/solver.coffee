@@ -67,11 +67,14 @@ class Solver
   # structured strangely. These methods provide better interfaces for
   # interacting with (ie, getting/setting/adding to) these variables.
 
+  #### `prev_results` ####
+  # Skim the `record` for just the end strategy operations which have info about
+  # the performance of each strategy.
   prev_results: ->
-    a = []
-    a.push(op) if op.type == "end-strat" for op in @record
-    return a
+    _.select(@record, (op) ->
+      op.type == "end-strat")
 
+  #### `last_attempt` ####
   # Get the index of the last occurrence of `strat_name` in the array of
   # previous results.
   last_attempt: (strat_name) ->
@@ -80,8 +83,10 @@ class Solver
       last = i if result.strat == strat_name )
     return last
 
+  #### `success` ####
   # Return whether a particular strategy result was a success (ie, if it filled
-  # in any values or updated the knowldege base at all).
+  # in any values or updated the knowldege base at all). The argument can either
+  # be an index into `prev_results()`, or an actual end-strat object.
   success: (strat_idx) ->
     if strat_idx.vals? and strat_idx.knowledge?
       result = strat_idx
@@ -89,42 +94,58 @@ class Solver
       result = @prev_results()[strat_idx]
     result.vals > 0 or result.knowledge > 0
 
+  #### `update_since` ####
   # See if any of the strategies from the specified index onwards have been
   # successful (not including the specified index).
   update_since: (idx) ->
-    results = _.rest(@prev_results(), idx + 1)
+    _.any(_.rest(@prev_results(), idx+1), (result) ->
+      result.vals > 0 or result.knowledge > 0)
 
-    for result in results
-      return true if result.vals > 0 or result.knowledge > 0
-    return false
-
+  #### `iter` ####
+  # Simply gets the number of previous results (plus one).
   iter: ->
     @prev_results().length + 1
 
-  # This will just read the cache of possible values if it exists, or will
-  # compute the informed possible values and cache it if there are 3 or less
-  # possibilities, which reflects how I would act solving a Sudoku.
+  #### `possibles_cache_threshold` ####
+  # The number of possible values at which or below we would start caching (ie,
+  # writing down) the possible values. In my play style, I am more inclined to
+  # write down information the more desperate I get. `iter` will serve as a
+  # proxy for this level of desperation.
+  possibles_cache_threshold: ->
+    Math.min(2, (@iter()-1) / 10)
+
+  # #### `possible_values` ####
+  # This will just read the cache of possible values if it
+  # exists, or will compute the informed possible values and cache it if there
+  # are 3 or less possibilities, which reflects how I would act solving a
+  # Sudoku.
   #
-  # Note: Informed possibilities are always used, but a lot of the time this
+  # Note1: Once the cache is created for a particular cell, then the
+  # `informed_possible_values` function is never going to be called again for
+  # that cell, so we must take extra care to update the `possibles` cache
+  # whenever a cluster is set.
+  #
+  # Note2: Informed possibilities are always used, but a lot of the time this
   # will result in the same effect as using naive possibilities, since informed
   # possibilities are only informed once their is knowledge is known. Also,
   # informed possibilities are just based on the knowledge that is recorded;
-  # this is akin to a human writing down information the grid, so it makes sense
-  # to always consult this knowledge, since a human would rarely ignore the
-  # information they write (this is assuming that, like I, they only record
+  # this is akin to a human writing down information on the grid, so it makes
+  # sense to always consult this knowledge, since a human would rarely ignore
+  # the information they write (this is assuming that, like I, they only record
   # minimal information and do not try to brute-force a strategy).
   possible_values: (i) ->
     if @possibles[i]?
       return @possibles[i]
     else
       vals = @informed_possible_values(i)
-      @possibles[i] = vals if vals.length <= 3
+      @possibles[i] = vals if vals.length <= @possibles_cache_threshold()
       return vals
 
-  # `record_cluster:` This saves the specified cluster in the knowledge bank,
-  # and also performs the standard `visualize_cluster` to refine the other
-  # information in the knowledge bank. This is analogous to the process I
-  # undertake when I'm desperate for information to get somewhere in a puzzle.
+  #### `record_cluster` ####
+  # This saves the specified cluster in the knowledge bank, and also performs
+  # the standard `visualize_cluster` to refine the other information in the
+  # knowledge bank. This is analogous to the process I undertake when I'm
+  # desperate for information to get somewhere in a puzzle.
   #
   # Adds the list of positions to the appropriate list in `@clusters` as long as
   # the list of positions being added isn't a superset of any clusters already
@@ -137,50 +158,54 @@ class Solver
       @clusters[val].push(positions)
       @visualize_cluster(val, positions)
 
+  #### `visualize_cluster` ####
   # Visualizes the specified cluster. This process just updates any `possible`
   # knowledge in cells that are affected by the cluster; it is analogous to the
   # process I undertake normally, before I'm desperate. This really shouldn't do
-  # a ton of updating, since `@restrict` should only have an effect when there
+  # a ton of updating, since `restrict` should only have an effect when there
   # are only a few possible values left for a cell and we're already recording
-  # them.
+  # them. Basically, this is just taking the cluster and seeing what we can do
+  # with it now, and not taking the effort to write down the cluster in case it
+  # might be useful in the future.
   #
-  # This is blind of the type of group the cluster was originally intended for,
-  # and just refines info for every type of group that is applicable.
+  # Sees if the positions are all in the same row, col, or box, and adds
+  # restrictions to the rest of the indices in that row, col, or box if they
+  # are.
   visualize_cluster: (val, positions) ->
     if @grid.same_row positions
       r = @grid.same_row positions
       row_idxs = @get_group_idxs(0, r)
       unclustered_idxs = _.without(row_idxs, positions...)
       @restrict(i, val) for i in unclustered_idxs
+
     if @grid.same_col positions
       c = @grid.same_col positions
       col_idxs = @get_group_idxs(1, c)
       unclustered_idxs = _.without(col_idxs, positions...)
       @restrict(i, val) for i in unclustered_idxs
+
     if @grid.same_box positions
       b = @grid.same_box positions
       box_idxs = @get_group_idxs(2, b)
       unclustered_idxs = _.without(box_idxs, positions...)
       @restrict(i, val) for i in unclustered_idxs
 
-
-
-
+  #### `restrict` ####
   # Updates the knowledge base with the information that cell i should be
   # restricted from value v; this will only do something if we're already
   # keeping track of possible values for cell i. Returns whether it updated the
   # knowledge base (ie, if we're tracking possible values for that cell and we
   # didn't already know that it couldn't be value v).
+  #
+  # Makes sure a list of possible vaules is set for i if it should exist (ie, if
+  # there are few enough values) by calling `possible_values` before trying
+  # anything.
   restrict: (i, v) ->
-    # Make sure a list of possible values is set for i if it should exist (ie,
-    # if there are only 3 or less possible values)
     @possible_values(i)
     if @possibles[i]? and v in @possibles[i]
       @possibles[i] = _.without(@possibles[i], v)
 
-      # We should never be in the case where we add a restriction and thus make
-      # a cell have no possible values.
-      throw "Error" if @possibles[i].length == 0
+      throw "Error" if @possibles[i].length == 0 # this wouldn't make sense
 
       return true
     else
@@ -253,25 +278,19 @@ class Solver
 
   ### Basic Logic ###
 
+  # Get an array of all informed possible values for a specific cell. To get the
+  # informed values, rejects any naive values for which there are clusters
+  # entirely in the same row, col, or box as the index in question. Because this
+  # is a refinement of `naive_possible_values`, will return an empty array if
+  # the cell is already set.
   informed_possible_values: (i) ->
     vals = @naive_possible_values(i)
-    [x,y] = util.base_to_cart i
-    [b_x, b_y, s_x, s_y] = util.base_to_box i
-    b = 3*b_y + b_x
 
-    row_clusters = @clusters[0][y]
-    col_clusters = @clusters[0][x]
-    box_clusters = @clusters[0][b]
-
-    # For each value, see if there are clusters in the row, col, or box which
-    # restrict that value to be somewhere that's not the current index.
-    for v in [1..9]
-      if (row_clusters[v]? and i not in row_clusters[v]) or
-         (col_clusters[v]? and i not in col_clusters[v]) or
-         (box_clusters[v]? and i not in box_clusters[v])
-        vals = _.without(vals, v)
-
-    return vals
+    _.reject(vals, (v) ->
+      _.any(@clusters[v], (cluster) ->
+        @grid.same_row(cluster.concat([i])) or
+        @grid.same_col(cluster.concat([i])) or
+        @grid.same_box(cluster.concat([i])) ) )
 
   # Get an array of all naively possible values for a specified cell. Returns an
   # empty array if the cell is already set.
@@ -303,7 +322,7 @@ class Solver
   # Gets a list of positions in a specified row where v can be filled in based
   # on filled in values and whatever knowledge we currently have. Positions are
   # returned as base indices of the grid.
-  possible_positions_in_box: (v, y) ->
+  possible_positions_in_row: (v, y) ->
     ps = []
     for x in [0..8]
       i = util.cart_to_base x,y
