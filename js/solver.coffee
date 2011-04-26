@@ -112,7 +112,7 @@ class Solver
   # write down information the more desperate I get. `iter` will serve as a
   # proxy for this level of desperation.
   possibles_cache_threshold: ->
-    Math.min(2, (@iter()-1) / 10)
+    Math.max(2, (@iter()-1) / 10)
 
   # #### `possible_values` ####
   # This will just read the cache of possible values if it
@@ -138,14 +138,32 @@ class Solver
       return @possibles[i]
     else
       vals = @informed_possible_values(i)
-      @possibles[i] = vals if vals.length <= @possibles_cache_threshold()
+      @possibles[i] = vals if vals.length < @possibles_cache_threshold()
       return vals
+
+  #### `record_cluster_threshold` ####
+  # The number of possible positions at which or below we would start recording
+  # clusters. In my play style, I am more inclined to write down information the
+  # more desperate I get. `iter` will serve as a proxy for tihs level of
+  # desperation.
+  record_cluster_threshold: ->
+    @possibles_cache_threshold() # we'll keep them the same for now
+
+  #### `announce_cluster` ####
+  # This will either record or visualize a cluster depending on
+  # `record_cluster_threshold.
+  announce_cluster: (val, positions) ->
+    if positions.length < @record_cluster_threshold()
+      @record_cluster()
+    else
+      @visualize_cluster()
 
   #### `record_cluster` ####
   # This saves the specified cluster in the knowledge bank, and also performs
   # the standard `visualize_cluster` to refine the other information in the
   # knowledge bank. This is analogous to the process I undertake when I'm
-  # desperate for information to get somewhere in a puzzle.
+  # desperate for information to get somewhere in a puzzle. Returns the number
+  # of additions made to the knowledge bank from visualizing the cluster.
   #
   # Adds the list of positions to the appropriate list in `@clusters` as long as
   # the list of positions being added isn't a superset of any clusters already
@@ -154,9 +172,11 @@ class Solver
     same_positions = (cluster) ->
       _.without(cluster, positions...) == []
 
-    unless _.any(@clusters[val], same_positions)
+    if _.any(@clusters[val], same_positions)
+      return 0
+    else
       @clusters[val].push(positions)
-      @visualize_cluster(val, positions)
+      return @visualize_cluster(val, positions) + 1
 
   #### `visualize_cluster` ####
   # Visualizes the specified cluster. This process just updates any `possible`
@@ -166,29 +186,34 @@ class Solver
   # are only a few possible values left for a cell and we're already recording
   # them. Basically, this is just taking the cluster and seeing what we can do
   # with it now, and not taking the effort to write down the cluster in case it
-  # might be useful in the future.
+  # might be useful in the future. Returns the number of additions made to the
+  # knowledge bank from visualizing the cluster.
   #
   # Sees if the positions are all in the same row, col, or box, and adds
   # restrictions to the rest of the indices in that row, col, or box if they
   # are.
   visualize_cluster: (val, positions) ->
+    k = 0 # knowledge gained from visualizing this cluster.
+
     if @grid.same_row positions
       r = @grid.same_row positions
       row_idxs = @get_group_idxs(0, r)
       unclustered_idxs = _.without(row_idxs, positions...)
-      @restrict(i, val) for i in unclustered_idxs
+      (k++ if @restrict(i, val)) for i in unclustered_idxs
 
     if @grid.same_col positions
       c = @grid.same_col positions
       col_idxs = @get_group_idxs(1, c)
       unclustered_idxs = _.without(col_idxs, positions...)
-      @restrict(i, val) for i in unclustered_idxs
+      (k++ if @restrict(i, val)) for i in unclustered_idxs
 
     if @grid.same_box positions
       b = @grid.same_box positions
       box_idxs = @get_group_idxs(2, b)
       unclustered_idxs = _.without(box_idxs, positions...)
-      @restrict(i, val) for i in unclustered_idxs
+      (k++ if @restrict(i, val)) for i in unclustered_idxs
+
+    return k
 
   #### `restrict` ####
   # Updates the knowledge base with the information that cell i should be
@@ -218,7 +243,11 @@ class Solver
   # values if setting this value makes others obvious. Also requires a string
   # specifying the strategy used to find this value, so that it can
   # appropriately be stored in the record (this needs to be done in the set
-  # function since it recursively calls the `fill_obvious` functions).
+  # function since it recursively calls the `fill_obvious` functions). Will also
+  # update the possible values (if any are stored) of cells in the same row,
+  # col, and box and return the number of refinements made to `possibles`
+  # arrays; to do this, it will create a cluster of one position, but this is
+  # just a convenience mechanism.
   set: (i, v, strat) ->
     @grid.set i,v
     @possibles[i] = []
@@ -227,12 +256,17 @@ class Solver
 
     @occurrences[v] += 1
 
+    k = @announce_cluster(v, [i]) # this will always go to record_cluster, since
+                                  # the number of positions is less than 2.
+
     [x,y] = util.base_to_cart i
     [b_x,b_y,s_x,s_y] = util.base_to_box i
 
     @fill_obvious_row(y)
     @fill_obvious_col(x)
     @fill_obvious_box(b_x, b_y)
+
+    return k
 
   #### `set_c` ####
   # Wrapper for `@grid.set_c` which will update the knowledge base if it needs
@@ -393,14 +427,11 @@ class Solver
     result = type: "end-strat", strat: "gridScan", vals: 0, knowledge: 0
     log "Trying Grid Scan"
 
-    # Iterate through each value occuring 5 or more times, from most prevalent
-    # to least prevalent.
     vals = @vals_by_occurrences_above_4()
     for v in vals
       @record.push {type: "gridscan-val", val: v}
       debug "- Grid Scan examining value #{v}"
 
-      # Iterate through each box which v does not occur in.
       for b in [0..8]
         if v not in @grid.get_group_vals(2, b)
           @record.push {type: "gridscan-box", box: b}
@@ -410,7 +441,9 @@ class Solver
 
           if ps.length == 1
             result.vals += 1
-            @set(ps[0], v, "gridScan")
+            result.knowledge += @set(ps[0], v, "gridScan")
+          else
+            result.knowledge += @announce_cluster(v, ps)
 
     @record.push result
 
@@ -458,7 +491,6 @@ class Solver
           @record.push {type: "smartgridscan-box", box: b}
           debug "-- Smart Grid Scan examining box #{b}"
 
-          # FIXME: ps = @possible_positions_in_box v, b, 'informed'
           ps = @possible_positions_in_box v, b
 
           switch ps.length
