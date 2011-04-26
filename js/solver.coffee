@@ -484,8 +484,6 @@ class Solver
     return ord
 
 
-
-
   ### Strategies ###
 
 
@@ -663,7 +661,6 @@ class Solver
   should_exhaustionSearch: ->
     last = @last_attempt("exhaustionSearch")
     return last == -1 or @strict_success(last) or @update_since(last)
-
 
   #### `choose_strategy` ####
   # Will choose a strategy and execute it. If no strategies are chosen, then

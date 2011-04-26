@@ -5,7 +5,6 @@
 - Display animation effects of the stuff that's going on: ie, when looking at a
   box, then light up that box?
   
-
 ## Functions ##
 
 - Give weights to the strategies based on how successful they've been so far,
