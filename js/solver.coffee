@@ -130,10 +130,14 @@ class Solver
 
   #### `update_since` ####
   # See if any of the strategies from the specified index onwards have been
-  # successful (not including the specified index).
-  update_since: (idx) ->
-    _.any(_.rest(@prev_results(), idx+1), (result) ->
-      result.vals > 0 or result.knowledge > 0)
+  # successful (not including the specified index); if `strict` is provided as
+  # truthy, then will see if any of the straetiges from the specified index
+  # onwards have been strictly successfuly.
+  update_since: (idx, strict) ->
+    _.any(_.rest(@prev_results(), idx+1), (result) =>
+      if strict then @strict_success(result) else @success(result))
+
+
 
   #### `tired` ####
   # See if it has been sufficiently long since a value has been filled in, or if
@@ -524,11 +528,14 @@ class Solver
     @record.push result
 
   ##### `should_gridScan` #####
-  # Run Grid Scan if no other strategies have been tried, or if the last
-  # operation was a Grid Scan and it worked (meaning it set at least one value).
+  # Run Grid Scan if the last attempt succeeded. gridScan is essentially just a
+  # version of thinkInsideTheBox better suited for the beginning of solving, so
+  # we don't run it again after it fails (because, as I solve, my strategy
+  # becomes less like Grid Scan and more like Think Inside the Box).
+  # been gathered since then.
   should_gridScan: ->
     last = @last_attempt("gridScan")
-    return last == -1 or @strict_success(last) or @update_since(last)
+    return last == -1 or @strict_success(last)
 
   #### Think Inside the Box ####
   # For each box b and for each value v which has not yet been filled in within
@@ -559,10 +566,11 @@ class Solver
     @record.push result
 
   ##### `should_thinkInsideTheBox` #####
-  # Run Think Inside the Box unless the last attempt failed.
+  # Run Think Inside the Box if the last attempt succeeded or if any new values
+  # have been filled in since then.
   should_thinkInsideTheBox: ->
     last = @last_attempt("thinkInsideTheBox")
-    return last == -1 or @strict_success(last) or @update_since(last)
+    return last == -1 or @strict_success(last) or @update_since(last, true)
 
   #### Think Inside the Row ####
   # For each row r and for each value v which has not yet been filled in within
@@ -593,10 +601,11 @@ class Solver
     @record.push result
 
   #### `should_thinkInsideTheRow` ####
-  # Run Think Inside the Row unless the last attempt failed.
+  # Run Think Inside the Row if the last attempt succeeded or if any new values
+  # have been filled in since then.
   should_thinkInsideTheRow: ->
     last = @last_attempt("thinkInsideTheRow")
-    return last == -1 or @strict_success(last) or @update_since(last)
+    return last == -1 or @strict_success(last) or @update_since(last, true)
 
   #### Think Inside the Col ####
   # For each col c and for each value v which has not yet been filled in within
@@ -627,10 +636,11 @@ class Solver
     @record.push result
 
   ##### `should_thinkInsideTheCol` #####
-  # Run Think Inside the Col unless the last attempt failed.
+  # Run Think Inside the Col if the last attempt succeeded or if any new values
+  # have been filled in since then.
   should_thinkInsideTheCol: ->
     last = @last_attempt("thinkInsideTheCol")
-    return last == -1 or @strict_success(last) or @update_since(last)
+    return last == -1 or @strict_success(last) or @update_since(last, true)
 
   #### Exhaustion Search ####
   # Consider each cell c, and see what values v c cannot be based on values in
@@ -642,7 +652,7 @@ class Solver
   exhaustionSearch: ->
     @record.push type: "start-strat", strat: "exhaustionSearch", iter: @iter()
     result = type: "end-strat", strat: "exhaustionSearch", vals: 0, knowledge: 0
-    log "Trying Exhaustion Search, #{@possibles_cache_threshold()}"
+    log "Trying Exhaustion Search"
 
     for i in [0..80]
       if @grid.get(i) == 0
@@ -658,6 +668,10 @@ class Solver
 
     @record.push result
 
+  ##### `should_exhaustionSearch` #####
+  # Run Exhaustion Search if the last attempt succeeded or if any new
+  # information has been recorded since then.
+
   should_exhaustionSearch: ->
     last = @last_attempt("exhaustionSearch")
     return last == -1 or @strict_success(last) or @update_since(last)
@@ -672,35 +686,35 @@ class Solver
   # before giving up.
   choose_strategy: ->
     unless @tired()
-      if @should_gridScan()
+      if dom.gridScan_on() and @should_gridScan()
         return @gridScan()
 
-      if @should_thinkInsideTheBox()
+      if dom.thinkInBox_on() and @should_thinkInsideTheBox()
         return @thinkInsideTheBox()
 
-      if @should_thinkInsideTheRow()
+      if dom.thinkInRow_on() and @should_thinkInsideTheRow()
         return @thinkInsideTheRow()
 
-      if @should_thinkInsideTheCol()
+      if dom.thinkInCol_on() and @should_thinkInsideTheCol()
         return @thinkInsideTheCol()
 
-      if @should_exhaustionSearch()
+      if dom.exhaustion_on() and @should_exhaustionSearch()
         return @exhaustionSearch()
 
     if @tired()
-      if @last_attempt("gridScan") == -1
+      if dom.gridScan_on() and @last_attempt("gridScan") == -1
         return @gridScan()
 
-      if @last_attempt("thinkInsideTheBox") == -1
+      if dom.thinkInBox_on() and @last_attempt("thinkInsideTheBox") == -1
         return @thinkInsideTheBox()
 
-      if @last_attempt("thinkInsideTheRow") == -1
+      if dom.thinkInRow_on() and @last_attempt("thinkInsideTheRow") == -1
         return @thinkInsideTheRow()
 
-      if @last_attempt("thinkInsideTheCol") == -1
+      if dom.thinkInCol_on() and @last_attempt("thinkInsideTheCol") == -1
         return @thinkInsideTheCol()
 
-      if @last_attempt("exhaustionSearch") == -1
+      if dom.exhaustion_on() and @last_attempt("exhaustionSearch") == -1
         return @exhaustionSearch()
 
 

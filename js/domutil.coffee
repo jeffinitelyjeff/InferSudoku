@@ -242,6 +242,7 @@ root.dom =
       $("#solve-b, #input-b, input.num").attr('disabled', true)
       animate_solve_b()
 
+  # Things to perform once the animation is done.
   wrap_up_animation: (record) ->
     strat_options = {opacity: 0, top: '+=75px'}
     solve_options = {opacity: 1, top: '-=50px'}
@@ -256,12 +257,14 @@ root.dom =
 
     strat_animate()
 
+  # Animate the list of operations.
   animate_solution: (record, callback) ->
     @animate_solution_r(_.first(record),
                         undefined,
                         _.rest(record),
                         callback)
 
+  # Animate each operation in the record list.
   animate_solution_r: (op, last_op, rest_ops, callback) ->
     return callback() unless op? > 0
 
@@ -295,9 +298,25 @@ root.dom =
             when "thinkInsideTheBox" then "thinkInside<br/>TheBox"
             when "thinkInsideTheCol" then "thinkInside<br/>TheCol"
             when "thinkInsideTheRow" then "thinkInside<br/>TheRow"
+            when "exhaustionSearch" then "exhaustion<br/>Search"
             else op.strat
         )
         iterate(0)
       else
         iterate(0)
 
+  # Functions to check the state of the strategy checkboxes.
+  gridScan_on: ->
+    $("#gridscan-box").is(':checked')
+
+  thinkInBox_on: ->
+    $("#thinkinbox-box").is(':checked')
+
+  thinkInRow_on: ->
+    $("#thinkinrow-box").is(':checked')
+
+  thinkInCol_on: ->
+    $("#thinkincol-box").is(':checked')
+
+  exhaustion_on: ->
+    $("#exhaustion-box").is(':checked')
