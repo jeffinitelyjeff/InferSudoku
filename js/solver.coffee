@@ -213,6 +213,7 @@ class Solver
 
   ### Setting ###
 
+  #### `set` ####
   # Wrapper for `@grid.set` which will update the knowledge base and fill in
   # values if setting this value makes others obvious. Also requires a string
   # specifying the strategy used to find this value, so that it can
@@ -233,16 +234,19 @@ class Solver
     @fill_obvious_col(x)
     @fill_obvious_box(b_x, b_y)
 
+  #### `set_c` ####
   # Wrapper for `@grid.set_c` which will update the knowledge base if it needs
   # to and fill in values if setting this value makes others obvious.
   set_c: (x,y,v,strat) ->
     @set(util.cart_to_base(x,y), v, strat)
 
+  #### `set_b` ####
   # Wrapper for `@grid.set_b` which will update the knowldege base if it needs
   # to and fill in values if setting this value makes others obvious.
   set_b: (b_x, b_y, s_x, s_y, strat) ->
     @set(util.cart_to_base util.box_to_cart(b_x, b_y, s_x, s_y)..., v, strat)
 
+  #### `fill_obvious_group` ####
   # If the specified group of indices has only one value missing, then will fill
   # in that value.
   fill_obvious_group: (idxs, type) ->
@@ -260,16 +264,19 @@ class Solver
 
       @set(idx, v, "#{type}-obvious")
 
+  #### `fill_obvious_row` ####
   # Calls `fill_obvious_group` for a row.
   fill_obvious_row: (y) ->
     idxs = @grid.get_group_idxs(0,y)
     @fill_obvious_group(idxs, "row")
 
+  #### `fill_obvious_col` ####
   # Calls `fill_obvious_group` for a col.
   fill_obvious_col: (x) ->
     idxs = @grid.get_group_idxs(1,x)
     @fill_obvious_group(idxs, "col")
 
+  #### `fill_obvious_box` ####
   # Calls `fill_obvious_group` for a box.
   fill_obvious_box: (b_x, b_y) ->
     idxs = @grid.get_group_idxs(2,3*b_x+b_y)
@@ -278,6 +285,7 @@ class Solver
 
   ### Basic Logic ###
 
+  #### `informed_possible_values` ####
   # Get an array of all informed possible values for a specific cell. To get the
   # informed values, rejects any naive values for which there are clusters
   # entirely in the same row, col, or box as the index in question. Because this
@@ -292,6 +300,7 @@ class Solver
         @grid.same_col(cluster.concat([i])) or
         @grid.same_box(cluster.concat([i])) ) )
 
+  #### `naive_possible_values` ####
   # Get an array of all naively possible values for a specified cell. Returns an
   # empty array if the cell is already set.
   naive_possible_values: (i) ->
@@ -301,6 +310,7 @@ class Solver
       impossible = @grid.get_all_group_vals_of(i)
       _.without([1..9], impossible...)
 
+  #### `possible_positions_in_box` ####
   # Gets a list of positions in a specified box where v can be filled in based
   # on filled in values and whatever knowledge we currently have. The box can be
   # specified either as (x,y) in [0..2]x[0..2] or with a single index in
@@ -319,6 +329,7 @@ class Solver
 
     return ps
 
+  #### `possible_positions_in_row` ####
   # Gets a list of positions in a specified row where v can be filled in based
   # on filled in values and whatever knowledge we currently have. Positions are
   # returned as base indices of the grid.
@@ -330,6 +341,7 @@ class Solver
 
     return ps
 
+  #### `possible_positions_in_col` ####
   # Gets a list of positions in a specified col where v can be filled in based
   # on filled in values and whatever knowledge we currently have. Positions are
   # returned as base indices of the grid.
@@ -341,6 +353,7 @@ class Solver
 
     return ps
 
+  #### `vals_by_occurrences_above_4` ####
   # Returns an array of values in order of the number of their occurrences,
   # in order of most prevalent to least prevalent. Only includes values which
   # occur 5 or more times.
@@ -351,6 +364,7 @@ class Solver
         ord.push(v) if @occurrences[v] == o
     return ord
 
+  #### `vals_by_occurrences` ####
   # Returns an array of values in order of the number of their occurrences, in
   # order of most prevalent to least prevalent.
   vals_by_occurrences: ->
@@ -374,7 +388,6 @@ class Solver
   # over the grid once, then start looking through values, keeping a mental list
   # of what values they'd already tried and not returning back to them). For
   # each value v, consider the boxes b where v has not yet been filled in.
-
   gridScan: ->
     @record.push type: "start-strat", strat: "gridScan", iter: @iter()
     result = type: "end-strat", strat: "gridScan", vals: 0, knowledge: 0
@@ -401,7 +414,7 @@ class Solver
 
     @record.push result
 
-
+  #### `should_gridScan` ####
   # Run Grid Scan if no other strategies have been tried, or if the last
   # operation was a Grid Scan and it worked (meaning it set at least one value).
   should_gridScan: ->
@@ -474,6 +487,7 @@ class Solver
 
     @record.push result
 
+  #### `should_smartGridScan` ####
   # Run Smart Grid Scan if the last attempt at Grid Scan failed, unless there
   # hasn't been any new info since the last attempt at Smart Grid Scan.
   should_smartGridScan: ->
@@ -509,6 +523,7 @@ class Solver
 
     @record.push result
 
+  #### `should_thinkInsideTheBox` ####
   # Run Think Inside the Box unless the last attempt failed.
   should_thinkInsideTheBox: ->
     last = @last_attempt("thinkInsideTheBox")
@@ -540,6 +555,7 @@ class Solver
 
     @record.push result
 
+  #### `should_thinkInsideTheRow` ####
   # Run Think Inside the Row unless the last attempt failed.
   should_thinkInsideTheRow: ->
     last = @last_attempt("thinkInsideTheRow")
@@ -571,13 +587,14 @@ class Solver
 
     @record.push result
 
+  #### `should_thinkInsideTheCol` ####
   # Run Think Inside the Col unless the last attempt failed.
   should_thinkInsideTheCol: ->
     last = @last_attempt("thinkInsideTheCol")
     return last == -1 or @success(last)
 
 
-
+  #### `choose_strategy` ####
   # Will choose a strategy and execute it. If no strategies are chosen, then
   # will return `false`, at which point the solve loop should stop.
   choose_strategy: ->
@@ -606,6 +623,7 @@ class Solver
 
     return false
 
+  #### `solve` ####
   # Solves the grid and returns an array of steps used to animate those steps.
   solve: ->
     log "Iteration 1"
