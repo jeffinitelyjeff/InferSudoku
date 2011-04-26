@@ -84,6 +84,11 @@ class Solver
     _.reduce @possibles, ((m, vals, i) ->
       m + "\n#{i}: [" + vals + "]"), ""
 
+  #### `print_results` ####
+  print_results: ->
+    _.reduce @prev_results(), ((m, result, idx) ->
+      m + "\n#{idx} #{result.strat}: v -> #{result.vals} k -> #{result.knowledge}"), ""
+
 
   #### `prev_results` ####
   # Skim the `record` for just the end strategy operations which have info about
@@ -130,6 +135,30 @@ class Solver
     _.any(_.rest(@prev_results(), idx+1), (result) ->
       result.vals > 0 or result.knowledge > 0)
 
+  #### `tired` ####
+  # See if it has been sufficiently long since a value has been filled it. For
+  # this implementation, we define sufficiently long as over 5 iterations and a
+  # streak of strategies that don't fill in values as long as the total number
+  # of strategies which have filled in values. This is a rough approximation of
+  # how a human would act; if they've only been successful with a few
+  # strategies, then not being successful in just a few would burn them out, but
+  # if they've been minorly successful with a bunch, then they'd be more willing
+  # to try out a bunch of strategies before giving up. We restrict it to being
+  # over 5 iterations because we don't want weird behavior at the beginning of
+  # the solve loop (if they don't get a strict success on the second strategy,
+  # then it'd get tired), and because there are 5 different strategies.
+  tired: ->
+    stricts = _.reduce @prev_results(), ((mem, result, idx) ->
+      mem += if @strict_success(idx) then 1 else 0), 0
+
+    last = -1
+    _.each @prev_results(), (result, idx) ->
+      last = idx if @strict_success(idx)
+
+    since = @iter() - last
+
+    since > Math.max(5, stricts)
+
   #### `iter` ####
   # Simply gets the number of previous results (plus one).
   iter: ->
@@ -141,7 +170,7 @@ class Solver
   # write down information the more desperate I get. `iter` will serve as a
   # proxy for this level of desperation.
   possibles_cache_threshold: ->
-    Math.max(2, (@iter()-1) / 5)
+    Math.max(2, @iter() / 5)
 
   # #### `possible_values` ####
   # This will just read the cache of possible values if it exists, or will
@@ -209,7 +238,7 @@ class Solver
       # Replace all clusters to which this cluster is a subset. This will create
       # duplicate clusters, since the cluster is also always added on, but this
       # shouldn't hurt anything.
-      _.each @clusters[val], ((cluster, idx) ->
+      _.each @clusters[val], ((cluster, idx) =>
         if _.without(positions, cluster...).length == 0
           @clusters[val][idx] = positions)
       @clusters[val].push(positions)
@@ -371,9 +400,10 @@ class Solver
       _.reject [1..9], (v) =>
         clusters = @clusters[v]
         _.any clusters, (cluster) =>
-          @grid.same_row(cluster.concat([i])) != -1 or
-          @grid.same_col(cluster.concat([i])) != -1 or
-          @grid.same_box(cluster.concat([i])) != -1
+          i not in cluster and
+          (@grid.same_row(cluster.concat([i])) != -1 or
+           @grid.same_col(cluster.concat([i])) != -1 or
+           @grid.same_box(cluster.concat([i])) != -1)
 
   #### `naive_possible_values` ####
   # Get an array of all naively possible values for a specified cell. Returns an
@@ -495,8 +525,8 @@ class Solver
   # Run Grid Scan if no other strategies have been tried, or if the last
   # operation was a Grid Scan and it worked (meaning it set at least one value).
   should_gridScan: ->
-    last = _.last(@prev_results())
-    last == undefined or (last.strat == "gridScan" and @success(last))
+    last = @last_attempt("gridScan")
+    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
 
   #### Think Inside the Box ####
   # For each box b and for each value v which has not yet been filled in within
@@ -530,7 +560,7 @@ class Solver
   # Run Think Inside the Box unless the last attempt failed.
   should_thinkInsideTheBox: ->
     last = @last_attempt("thinkInsideTheBox")
-    return last == -1 or @success(last)
+    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
 
   #### Think Inside the Row ####
   # For each row r and for each value v which has not yet been filled in within
@@ -564,7 +594,7 @@ class Solver
   # Run Think Inside the Row unless the last attempt failed.
   should_thinkInsideTheRow: ->
     last = @last_attempt("thinkInsideTheRow")
-    return last == -1 or @success(last)
+    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
 
   #### Think Inside the Col ####
   # For each col c and for each value v which has not yet been filled in within
@@ -594,11 +624,37 @@ class Solver
 
     @record.push result
 
-  #### `should_thinkInsideTheCol` ####
+  ##### `should_thinkInsideTheCol` #####
   # Run Think Inside the Col unless the last attempt failed.
   should_thinkInsideTheCol: ->
     last = @last_attempt("thinkInsideTheCol")
-    return last == -1 or @success(last)
+    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
+
+  #### Exhaustion Search ####
+  # Consider each cell c, and see what values v c cannot be based on values in
+  # the groups it's in and any cluster info we've written down pertaining to
+  # those groups. Let w be the values in [1..9] not in v; if w is a single
+  # value, then fill it in, and otherwise record the possibilities if w is
+  # sufficiently short (as determined by `possibles_cache_threshold`).
+
+  exhaustionSearch: ->
+    @record.push type: "start-strat", strat: "exhaustionSearch", iter: @iter()
+    result = type: "end-strat", strat: "exhaustionSearch", vals: 0, knowledge: 0
+    log "Trying Exhaustion Search"
+
+    for i in [0..80]
+      if @grid.get(i) == 0
+        debug "- Exhaustion Search examining cell (#{util.base_to_cart i})"
+        vals = @possible_values(i, true)
+        if vals.length == 1
+          result.vals += 1
+          result.knowledge += @set(i, vals[0], "exhaustionSearch")
+
+    @record.push result
+
+  should_exhaustionSearch: ->
+    last = @last_attempt("exhaustionSearch")
+    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
 
 
   #### `choose_strategy` ####
@@ -620,10 +676,8 @@ class Solver
     if @should_thinkInsideTheCol()
       return @thinkInsideTheCol()
 
-    # FIXME
-    # if @should_thinkOutsideTheBox()
-    # if @should_exhaustionSearch()
-    # if @should_desperationSearch()
+    if @should_exhaustionSearch()
+      return @exhaustionSearch()
 
     return false
 
@@ -643,6 +697,7 @@ class Solver
       debug "Possibles", @print_possibles()
 
 
+    debug "Results", @print_results()
 
     log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
 

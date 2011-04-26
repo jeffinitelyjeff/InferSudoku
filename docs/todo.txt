@@ -1,25 +1,10 @@
 # Tasks #
 
-- RESTRICTIONS / CLUSTERS
-
 # Things to Implement #
 
-- Need new system for restrictions. There should just be one function called
-  something like possible_values(i) which will use informed possibilities if the
-  information is available, but will resort to naive possibilities if informed
-  info isn't available.
-  + Restrictions: cell I cannot be values V1, V2, ..., Vn.
-  + Clusters: for row/col/box I, value V can only be in positions P1, P2, ...,
-  Pn.
-  
 - Display animation effects of the stuff that's going on: ie, when looking at a
   box, then light up that box?
   
-- Completely restructure Smart Grid Scan so that it only adds to already created
-  restrictions, exhaustion search should always be the one to create the
-  restrictions in the first place.
-
-- Add variables for all JQuery selections in domutil.
 
 ## Functions ##
 
