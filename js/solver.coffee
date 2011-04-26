@@ -136,28 +136,32 @@ class Solver
       result.vals > 0 or result.knowledge > 0)
 
   #### `tired` ####
-  # See if it has been sufficiently long since a value has been filled it. For
-  # this implementation, we define sufficiently long as over 5 iterations and a
-  # streak of strategies that don't fill in values as long as the total number
-  # of strategies which have filled in values. This is a rough approximation of
-  # how a human would act; if they've only been successful with a few
-  # strategies, then not being successful in just a few would burn them out, but
-  # if they've been minorly successful with a bunch, then they'd be more willing
-  # to try out a bunch of strategies before giving up. We restrict it to being
-  # over 5 iterations because we don't want weird behavior at the beginning of
-  # the solve loop (if they don't get a strict success on the second strategy,
-  # then it'd get tired), and because there are 5 different strategies.
+  # See if it has been sufficiently long since a value has been filled in, or if
+  # there are many (10x) more strategies that haven't added values than ones that
+  # have. For this implementation, we define sufficiently long as over 5
+  # iterations and a streak of strategies that don't fill in values as long as
+  # the total number of strategies which have filled in values. This is a rough
+  # approximation of how a human would act; if they've only been successful with
+  # a few strategies, then not being successful in just a few would burn them
+  # out, but if they've been minorly successful with a bunch, then they'd be
+  # more willing to try out a bunch of strategies before giving up. We restrict
+  # it to being over 5 iterations because we don't want weird behavior at the
+  # beginning of the solve loop (if they don't get a strict success on the
+  # second strategy, then it'd get tired), and because there are 5 different
+  # strategies.
   tired: ->
-    stricts = _.reduce @prev_results(), ((mem, result, idx) ->
+    stricts = _.reduce @prev_results(), ((mem, result, idx) =>
       mem += if @strict_success(idx) then 1 else 0), 0
+    non_stricts = _.reduce @prev_results(), ((mem, result, idx) =>
+      mem += if @success(idx) and not @strict_success(idx) then 1 else 0), 0
 
     last = -1
-    _.each @prev_results(), (result, idx) ->
+    _.each @prev_results(), (result, idx) =>
       last = idx if @strict_success(idx)
 
     since = @iter() - last
 
-    since > Math.max(5, stricts)
+    since > Math.max(5, stricts) or non_stricts > 10 * stricts
 
   #### `iter` ####
   # Simply gets the number of previous results (plus one).
@@ -170,7 +174,7 @@ class Solver
   # write down information the more desperate I get. `iter` will serve as a
   # proxy for this level of desperation.
   possibles_cache_threshold: ->
-    Math.max(2, @iter() / 5)
+    Math.max(2, @iter()/5 + 1)
 
   # #### `possible_values` ####
   # This will just read the cache of possible values if it exists, or will
@@ -526,7 +530,7 @@ class Solver
   # operation was a Grid Scan and it worked (meaning it set at least one value).
   should_gridScan: ->
     last = @last_attempt("gridScan")
-    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
+    return last == -1 or @strict_success(last) or @update_since(last)
 
   #### Think Inside the Box ####
   # For each box b and for each value v which has not yet been filled in within
@@ -560,7 +564,7 @@ class Solver
   # Run Think Inside the Box unless the last attempt failed.
   should_thinkInsideTheBox: ->
     last = @last_attempt("thinkInsideTheBox")
-    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
+    return last == -1 or @strict_success(last) or @update_since(last)
 
   #### Think Inside the Row ####
   # For each row r and for each value v which has not yet been filled in within
@@ -594,7 +598,7 @@ class Solver
   # Run Think Inside the Row unless the last attempt failed.
   should_thinkInsideTheRow: ->
     last = @last_attempt("thinkInsideTheRow")
-    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
+    return last == -1 or @strict_success(last) or @update_since(last)
 
   #### Think Inside the Col ####
   # For each col c and for each value v which has not yet been filled in within
@@ -628,7 +632,7 @@ class Solver
   # Run Think Inside the Col unless the last attempt failed.
   should_thinkInsideTheCol: ->
     last = @last_attempt("thinkInsideTheCol")
-    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
+    return last == -1 or @strict_success(last) or @update_since(last)
 
   #### Exhaustion Search ####
   # Consider each cell c, and see what values v c cannot be based on values in
@@ -640,12 +644,16 @@ class Solver
   exhaustionSearch: ->
     @record.push type: "start-strat", strat: "exhaustionSearch", iter: @iter()
     result = type: "end-strat", strat: "exhaustionSearch", vals: 0, knowledge: 0
-    log "Trying Exhaustion Search"
+    log "Trying Exhaustion Search, #{@possibles_cache_threshold()}"
 
     for i in [0..80]
       if @grid.get(i) == 0
         debug "- Exhaustion Search examining cell (#{util.base_to_cart i})"
+        o = @possibles[i]
         vals = @possible_values(i, true)
+        n = @possibles[i]
+        result.knowledge += 1 if n != o
+        debug "- Vals: #{vals}"
         if vals.length == 1
           result.vals += 1
           result.knowledge += @set(i, vals[0], "exhaustionSearch")
@@ -654,30 +662,50 @@ class Solver
 
   should_exhaustionSearch: ->
     last = @last_attempt("exhaustionSearch")
-    return last == -1 or @strict_success(last) or @update_since(last) and not @tired()
+    return last == -1 or @strict_success(last) or @update_since(last)
 
 
   #### `choose_strategy` ####
   # Will choose a strategy and execute it. If no strategies are chosen, then
-  # will return `false`, at which point the solve loop should stop.
+  # will return `false`, at which point the solve loop should stop. If the
+  # solver is not tired, then will choose whichever in the order gridScan ->
+  # thinkInsideTheBox -> thinkInsideTheRow -> thinkInsideTheCol ->
+  # exhaustionSearch happens to qualify (based on their should_xxx functions);
+  # if the solver is tired, then will try out a strategy it's never done before
+  # before giving up.
   choose_strategy: ->
-    # FIXME: should make this more complicated, maybe choose order to test based
-    # on how successful they've been so far?
+    unless @tired()
+      if @should_gridScan()
+        return @gridScan()
 
-    if @should_gridScan()
-      return @gridScan()
+      if @should_thinkInsideTheBox()
+        return @thinkInsideTheBox()
 
-    if @should_thinkInsideTheBox()
-      return @thinkInsideTheBox()
+      if @should_thinkInsideTheRow()
+        return @thinkInsideTheRow()
 
-    if @should_thinkInsideTheRow()
-      return @thinkInsideTheRow()
+      if @should_thinkInsideTheCol()
+        return @thinkInsideTheCol()
 
-    if @should_thinkInsideTheCol()
-      return @thinkInsideTheCol()
+      if @should_exhaustionSearch()
+        return @exhaustionSearch()
 
-    if @should_exhaustionSearch()
-      return @exhaustionSearch()
+    if @tired()
+      if @last_attempt("gridScan") == -1
+        return @gridScan()
+
+      if @last_attempt("thinkInsideTheBox") == -1
+        return @thinkInsideTheBox()
+
+      if @last_attempt("thinkInsideTheRow") == -1
+        return @thinkInsideTheRow()
+
+      if @last_attempt("thinkInsideTheCol") == -1
+        return @thinkInsideTheCol()
+
+      if @last_attempt("exhaustionSearch") == -1
+        return @exhaustionSearch()
+
 
     return false
 
@@ -698,6 +726,7 @@ class Solver
 
 
     debug "Results", @print_results()
+    log "Quit becasue I was tired..." if @tired()
 
     log if @grid.is_solved() then "Grid solved! :)" else "Grid not solved :("
 
