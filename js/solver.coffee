@@ -57,6 +57,11 @@ class Solver
       for i in [0...81]
         @occurrences[v] += 1 if @grid.get(i) == v
 
+    for y in [0..8]
+      for x in [0..8]
+        v = @grid.get_c(x,y)
+        @record_cluster(v, [util.cart_to_base x,y]) if v > 0
+
     debug "Occurrences:"
     debug _.reduce @occurrences, ((mem, o, v) -> mem + "#{v}: #{o}\n"), ""
 
@@ -332,19 +337,19 @@ class Solver
   ### Basic Logic ###
 
   #### `informed_possible_values` ####
-  # Get an array of all informed possible values for a specific cell. To get the
-  # informed values, rejects any naive values for which there are clusters
-  # entirely in the same row, col, or box as the index in question. Because this
-  # is a refinement of `naive_possible_values`, will return an empty array if
-  # the cell is already set.
+  # Get an array of all informed possible values for a specific cell. Narrows
+  # down values by seeing if there are any clusters such that the cluster makes
+  # the value unattainable for the cell (by seeing if any cluster exists for the
+  # value such that all the cluster's positions and the cell in question are in
+  # the same group). This also handles values which are filled in the grid,
+  # because clusters of size 1 are created for them when they're filled.
   informed_possible_values: (i) ->
-    vals = @naive_possible_values(i)
-
-    _.reject vals, (v) =>
-      _.any @clusters[v], (cluster) =>
-        @grid.same_row(cluster.concat([i])) or
-        @grid.same_col(cluster.concat([i])) or
-        @grid.same_box(cluster.concat([i]))
+    _.reject [1..9], (v) =>
+      clusters = @clusters[v]
+      _.any clusters, (cluster) =>
+        @grid.same_row(cluster.concat([i])) != -1 or
+        @grid.same_col(cluster.concat([i])) != -1 or
+        @grid.same_box(cluster.concat([i])) != -1
 
   #### `naive_possible_values` ####
   # Get an array of all naively possible values for a specified cell. Returns an
