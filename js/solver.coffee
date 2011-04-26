@@ -365,16 +365,26 @@ class Solver
   possible_positions_in_box: (v, x, y) ->
     b = if y? then 3*y + x else x
 
-    _.select @grid.get_group_idxs(2, b), (i) =>
+    ps = _.select @grid.get_group_idxs(2, b), (i) =>
       v in @possible_values(i)
+
+    if ps.length == 0 and v not in @grid.get_group_vals(2, b)
+      throw "Error" # this means v isn't possible in the group, which is bad.
+    else
+      return ps
 
   #### `possible_positions_in_row` ####
   # Gets a list of positions in a specified row where v can be filled in based
   # on filled in values and whatever knowledge we currently have. Positions are
   # returned as base indices of the grid.
   possible_positions_in_row: (v, y) ->
-    _.select @grid.get_group_idxs(0, y), (i) =>
+    ps = _.select @grid.get_group_idxs(0, y), (i) =>
       v in @possible_values(i)
+
+    if ps.length == 0 and v not in @grid.get_group_vals(0, y)
+      throw "Error"
+    else
+      return ps
 
   #### `possible_positions_in_col` ####
   # Gets a list of positions in a specified col where v can be filled in based
@@ -383,6 +393,11 @@ class Solver
   possible_positions_in_col: (v, x) ->
     _.select @grid.get_group_idxs(1, x), (i) =>
       v in @possible_values(i)
+
+    if ps.length == 0 and v not in @grid.get_group_vals(1, x)
+      throw "Error"
+    else
+      return ps
 
   #### `vals_by_occurrences_above_4` ####
   # Returns an array of values in order of the number of their occurrences,
@@ -565,8 +580,8 @@ class Solver
     # FIXME: should make this more complicated, maybe choose order to test based
     # on how successful they've been so far?
 
-    #if @should_gridScan()
-    #  return @gridScan()
+    if @should_gridScan()
+      return @gridScan()
 
     if @should_thinkInsideTheBox()
       return @thinkInsideTheBox()

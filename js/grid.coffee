@@ -18,6 +18,12 @@ class Grid
   constructor: ->
     @base_array = @collect_input()
 
+  print: ->
+    _.reduce [0..8], ( (memo, y) =>
+      memo + "\n" + _.reduce [0..8], ( (memo2, x) =>
+        memo2 + " " + @get_c(x,y) ), ""), ""
+
+
   ### Accesssor Methods ###
 
   # Access an element from the grid by a base index. Throws an error if an
