@@ -21,3 +21,6 @@ instead of beforehand, but it involves including the appropriate compiler
 javascript files. If the grader would prefer this so the source code can be
 tinkered with without recompiling each time, then let me know and I can set up
 with this model instead.
+
+The bookmarklet used to gather sudoku data was as follows:
+javascript:(function(){var s="";for(i=0;i<9;i++){for(j=0;j<9;j++){var v=document.getElementById('f'+i+j).value;s+=v==""?".":v}s+="\n";}var pre=document.createElement('pre');pre.innerHTML=s;var body=document.getElementsByTagName('body')[0];body.insertBefore(pre,body.children[0]);})()
