@@ -1,3 +1,11 @@
+InferSudoku is a Coffeescript project to solve Sudoku puzzles using human-level
+inference. It was written as a final project for COMP360 - Topics in Artificial
+Intelligence at Wesleyan University in the Spring 2011 semester. The following
+are instructions that were provided to the instructor when the project was
+submitted for a grade.
+
+---------------------------
+
 This project is written in Coffeescript, a language which compiles to
 javascript.
 
